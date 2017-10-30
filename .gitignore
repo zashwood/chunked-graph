@@ -1,0 +1,6 @@
+*.jl.cov
+*.jl.mem
+
+server.conf
+keys/
+logs/
