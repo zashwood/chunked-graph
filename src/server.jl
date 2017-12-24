@@ -35,6 +35,7 @@ end
 # Load top layers of Chunked Graph
 
 cgraph = ChunkedGraph(rel(settings["graphpath"]), settings["cloudpath"])
+gc_enable(false)
 @time for f in filter(s->ismatch(r".*\.chunk", s), readdir(expanduser(rel(settings["graphpath"]))))
 	m = match(r"(\d+)_(\d+)_(\d+)_(\d+)\..*", f)
 	id = tochunk(map(x->parse(UInt32, x), m.captures)...)
@@ -42,6 +43,7 @@ cgraph = ChunkedGraph(rel(settings["graphpath"]), settings["cloudpath"])
 		getchunk!(cgraph, id)
 	end
 end
+gc_enable(true)
 
 vertices = Vector{UInt64}()
 if(length(cgraph.chunks) > 0)
@@ -51,7 +53,7 @@ println("$(length(vertices)) vertices")
 
 function gethandles(v_arr::Vector{UInt64})
 	handles = Dict{UInt32, UInt64}()
-	sizehint!(handles, length(vertices))
+	sizehint!(handles, Int(floor(1.25 * length(v_arr))))
 	for v in v_arr
 		handles[tosegment(v)] = v
 	end
@@ -64,19 +66,34 @@ function simple_print(x::Array)
 	string('[', map(n->"$(n),", x)..., ']')
 end
 
-function handle_leaves(id::AbstractString)
+function handle_leaves(id::AbstractString, query::Union{AbstractString, Void})
 	#@Logging.debug("handle_leaves($id)")
 	id = parse(UInt64, id)
-
 	if tochunk(id) == 0 # Lvl 1, a neuroglancer supervoxel, need to lookup chunk id
 		id = handles[id]
 	end
 
-	root_vertex = [root!(cgraph, getvertex!(cgraph, id))][1]
-	segments = leaves!(cgraph, root_vertex)
+	bbox = (0:typemax(Int), 0:typemax(Int), 0:typemax(Int))
 
-	println("$(now()): selected $(length(segments)) segments with root $(root_vertex.label)")
-	s = vcat(collect(Set{UInt64}(tosegment(x) for x in segments)), root_vertex.label)
+	if query !== nothing
+		matches = match(r"bounds=(\d+)-(\d+)_(\d+)-(\d+)_(\d+)-(\d+)", query)
+		if matches !== nothing
+			bounds = map(x->parse(Int, x), matches.captures)
+			chunk_min = fld(bounds[1], ChunkedGraphs.CHUNK_SIZE[1]),
+						fld(bounds[3], ChunkedGraphs.CHUNK_SIZE[2]),
+						fld(bounds[5], ChunkedGraphs.CHUNK_SIZE[3])
+			chunk_max = fld(bounds[2] - 1, ChunkedGraphs.CHUNK_SIZE[1]),
+						fld(bounds[4] - 1, ChunkedGraphs.CHUNK_SIZE[2]),
+						fld(bounds[6] - 1, ChunkedGraphs.CHUNK_SIZE[3])
+			bbox = (chunk_min[1]:chunk_max[1], chunk_min[2]:chunk_max[2], chunk_min[3]:chunk_max[3])
+		end
+	end
+
+	ancestor = getvertex!(cgraph, id)
+	segments = leaves!(cgraph, ancestor, 1, bbox)
+
+	println("$(now()): selected $(length(segments)) segments with ancestor $(ancestor.label) in region $(bbox)")
+	s = collect(Set{UInt64}(tosegment(x) for x in segments))
 
 	return HttpServer.Response(reinterpret(UInt8, s), headers)
 end
@@ -91,18 +108,7 @@ function handle_root(id::AbstractString)
 	end
 
 	root_vertex = [root!(cgraph, getvertex!(cgraph, id))][1]
-	#mesh!(root_vertex)
 	println("$(root_vertex.label)")
-
-	#Temporary hack to prevent NG from dying when clicking on big objects
-	if tolevel(tochunk(root_vertex.label)) > 3
-		l = length(leaves!(cgraph, root_vertex, 3))
-		println("Number of level 3 chunks: ", l)
-		if l > 1000
-			#@Logging.debug("$(root_vertex.label) is too large.")
-			return HttpServer.Response(UInt8[], headers)
-		end
-	end
 
 	return HttpServer.Response(reinterpret(UInt8,[root_vertex.label]),headers)
 end
@@ -199,11 +205,11 @@ http = HttpServer.HttpHandler() do req::HttpServer.Request, res::HttpServer.Resp
 	if req.method == "OPTIONS"
 		return HttpServer.Response(UInt8[], headers)
 	elseif ismatch(r"/1.0/segment/(\d+)/root/?", req.resource) && req.method == "GET"
-		return handle_root(match(r"/1.0/segment/(\d+)/root/?", req.resource).captures...)
+		return handle_root(match(r"/1.0/segment/(\d+)/root/?", req.resource).captures[1])
 	elseif ismatch(r"/1.0/segment/(\d+)/children/?", req.resource) && req.method == "GET"
-		return handle_children(match(r"/1.0/segment/(\d+)/children/?", req.resource).captures...)
+		return handle_children(match(r"/1.0/segment/(\d+)/children/?", req.resource).captures[1])
 	elseif ismatch(r"/1.0/segment/(\d+)/leaves/?", req.resource) && req.method == "GET"
-		return handle_leaves(match(r"/1.0/segment/(\d+)/leaves/?", req.resource).captures...)
+		return handle_leaves(match(r"/1.0/segment/(\d+)/leaves/?(?:\?(.*))?", req.resource).captures...)
 	elseif ismatch(r"/1.0/graph/merge/?", req.resource) && req.method == "POST"
 		return handle_merge(req.data)
 	elseif ismatch(r"/1.0/graph/split/?", req.resource) && req.method == "POST"
@@ -222,4 +228,4 @@ server = HttpServer.Server(http)
 cert = MbedTLS.crt_parse_file(joinpath(rel(settings["certpath"]), "server.crt"))
 key = MbedTLS.parse_keyfile(joinpath(rel(settings["certpath"]), "server.key"))
 
-#run(server, host=getaddrinfo(settings["host"]), port=settings["port"], ssl=(cert, key))
+run(server, host=getaddrinfo(settings["host"]), port=settings["port"], ssl=(cert, key))

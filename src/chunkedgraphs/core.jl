@@ -57,6 +57,7 @@ end
 	return UInt8((lbl >> 48) & low_mask_8), UInt8((lbl >> 40) & low_mask_8), UInt8((lbl >> 32) & low_mask_8)
 end
 
+"Creates a bounding box as `Tuple{UnitRange{Int}, UnitRange{Int}, UnitRange{Int}}`. Coordinates are *chunk* coordinates."
 function tocuboid(chk::ChunkID)
 	@assert tolevel(chk) >= 1
 	if chk === TOP_ID || chk === SECOND_ID
@@ -69,6 +70,7 @@ function tocuboid(chk::ChunkID)
 end
 
 # TODO: level > 1, switch to BoundingBoxes.jl?
+"Creates a bounding box as `Tuple{UnitRange{Int}, UnitRange{Int}, UnitRange{Int}}`. Coordinates are *chunk* coordinates."
 function tocuboid(lbls::Vector{Label}, dilate::Int = 0)
 	min_x, min_y, min_z = typemax(Int), typemax(Int), typemax(Int)
 	max_x, max_y, max_z = 0, 0, 0
