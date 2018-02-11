@@ -103,22 +103,28 @@ function incident_edges(mgraph::MultiGraph{L,E}, lbl::L) where {L,E}
 end
 
 # TODO: Check and simplify
-"Returns a dictionary from edges to list of atomic edges"
-function induced_edges(mgraph::MultiGraph{L,E}, lbls::Vector{L}) where {L,E}
+"Returns a list of EdgeSets among vertices of lbls"
+function induced_edges(mgraph::MultiGraph{L,E,C}, lbls::Vector{L}) where {L,E,C}
 	vertices = Int[mgraph.vertex_map[lbl] for lbl in lbls if haskey(mgraph.vertex_map, lbl)]
 	vertex_set = Set{Int}(vertices)
 
-	ret = Dict{Tuple{L, L}, Set{E}}()
+	ret = C[]
 	for u in vertex_set
 		for v in neighbors(mgraph.graph, u)
 			if u < v && v in vertex_set
 				edge = (mgraph.inverse_vertex_map[u], mgraph.inverse_vertex_map[v])
-				ret[edge] = mgraph.edge_map[(u, v)]
+				push!(ret, mgraph.edge_map[(u, v)])
 			end
 		end
 	end
 	return ret
 end
+
+"Returns the atomic edges induced by lbls"
+function induced_atomic_edges(mgraph::MultiGraph{L,E}, lbls::Vector{L}) where {L,E}
+	return cat(1, (collect(i) for i in induced_edges(mgraph,lbls))...)
+end
+
 
 # TODO: Check and simplify
 function connected_components(mgraph::MultiGraph{L,E}, lbls::Set{L}) where {L,E}

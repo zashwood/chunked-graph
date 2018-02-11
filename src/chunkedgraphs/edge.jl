@@ -1,9 +1,9 @@
-import Base: isless, isequal, ==, <, hash
+import Base: isless, isequal, ==, <, hash, collect, union!, setdiff!
 
 struct AtomicEdge
 	u::Label
 	v::Label
-	aff::Affinity
+	affinity::Affinity
 end
 
 type SingletonEdgeSet
@@ -28,6 +28,20 @@ function EdgeSet()
 	return CompositeEdgeSet(NULL_LABEL, NULL_LABEL, EdgeSet[])
 end
 =#
+
+
+
+function collect(c::CompositeEdgeSet)
+	return cat(1, map(collect, c.children)...)::Array{AtomicEdge}
+end
+
+function collect(c::SingletonEdgeSet)
+	if c.nonempty
+		return AtomicEdge[c.e]
+	else
+		return AtomicEdge[]
+	end
+end
 
 function CompositeEdge(c::ChunkedGraph, e::AtomicEdge)
 	@assert hasvertex!(c, head(e))
@@ -123,8 +137,6 @@ function buildup!(c::ChunkedGraph, e::Union{CompositeEdgeSet,SingletonEdgeSet})
 	@assert hasvertex!(c, head(e))
 	@assert hasvertex!(c, tail(e))
 	while !is_valid(c, e)
-		println(stringify(head(e)))
-		println(stringify(tail(e)))
 		e=CompositeEdgeSet(force_get_parent!(c,head(e)), 
 						force_get_parent!(c,tail(e)),EdgeSet[e])
 	end

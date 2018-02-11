@@ -26,6 +26,7 @@ function common_parent_vertices!(cgraph::ChunkedGraph, lbls::Vector{Label})
 	return root_vertices
 end
 
+
 function induced_subgraph!(cgraph::ChunkedGraph, chunk::Chunk, vertices::Vector{Label}, bbox::Cuboid)
 	atomicedges = AtomicEdge[]
 	chunks = [chunk]
@@ -34,8 +35,11 @@ function induced_subgraph!(cgraph::ChunkedGraph, chunk::Chunk, vertices::Vector{
 	while lvl > 0
 		# Add all induced edges of all important vertices in all chunks on the current level to the existing list of atomicedges
 		#append!(atomicedges, vcat([vcat(values(induced_edges(c.graph, vertices))...) for c in chunks]...)); # arrays
-		append!(atomicedges, collect(reduce(union, union(values(induced_edges(c.graph, vertices))...) for c in chunks)));
-		if lvl > 1
+		for c in chunks
+			append!(atomicedges, induced_atomic_edges(c.graph, vertices))
+		end
+
+		if lvl > 2
 			# From the current set of vertices, collect all child vertices
 			vertices = convert(Vector{Label}, vcat([vcat([c.vertices[v].children for v in filter(v->haskey(c.vertices, v), vertices)]...) for c in chunks]...));
 
@@ -59,7 +63,7 @@ end
 function mincut!(cgraph::ChunkedGraph, sources::Vector{Label}, sinks::Vector{Label})
 	bbox = tocuboid(vcat(sources, sinks))
 	root_vertices = common_parent_vertices!(cgraph, vcat(sources, sinks))
-	c = getchunk!(cgraph, tochunkid(root_vertices[1].label))
+	c = getchunk!(cgraph, parent(tochunk(root_vertices[1].label)))
 	atomic_vertices, atomic_edges = induced_subgraph!(cgraph, c, map(r->r.label, root_vertices), bbox)
 
 	# Relabel atomic vertex labels to get a dense matrix for LightGraphs
