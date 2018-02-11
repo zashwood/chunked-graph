@@ -3,15 +3,16 @@ using LightGraphs
 
 import Base: sizehint!, show
 
-mutable struct MultiGraph{L,E}
+#C is a container type for elements of type E
+mutable struct MultiGraph{L,E,C}
 	graph::Graph{Int}
 	vertex_map::Dict{L, Int}
 	inverse_vertex_map::Dict{Int, L}
-	edge_map::Dict{Tuple{Int, Int}, Set{E}}
+	edge_map::Dict{Tuple{Int, Int}, C}
 end
 
-function MultiGraph{L, E}() where {L, E}
-	return MultiGraph(Graph(), Dict{L, Int}(), Dict{Int, L}(), Dict{Tuple{Int, Int}, Set{E}}())
+function MultiGraph{L,E,C}() where {L,E,C}
+	return MultiGraph{L,E,C}(Graph(), Dict{L, Int}(), Dict{Int, L}(), Dict{Tuple{Int, Int}, C}())
 end
 
 show(io::IO, mgraph::MultiGraph) = print("MultiGraph with $(nv(mgraph.graph)) and $(ne(mgraph.graph)) edges")
@@ -47,35 +48,49 @@ end
 	delete!(mgraph.inverse_vertex_map, u)
 end
 
-@inline function add_edge!(mgraph::MultiGraph{L,E}, lbl_u::L, lbl_v::L, e::E) where {L,E}
+function add_edge!(mgraph::MultiGraph{L,E,C}, lbl_u::L, lbl_v::L, e::E) where {L,E,C}
 	u = mgraph.vertex_map[lbl_u]
 	v = mgraph.vertex_map[lbl_v]
 	LightGraphs.add_edge!(mgraph.graph, u, v)
 	uv = unordered(u, v)
 	if !haskey(mgraph.edge_map, uv)
-		mgraph.edge_map[uv] = Set{E}()
+		mgraph.edge_map[uv] = C()
 	end
 	push!(mgraph.edge_map[uv], e)
 end
 
-@inline function add_edges!(mgraph::MultiGraph{L,E}, lbl_u::L, lbl_v::L, edges::Vector{E}) where {L,E}
+function add_edges!(mgraph::MultiGraph{L,E,C}, lbl_u::L, lbl_v::L, edges::Union{Set{E},Vector{E},C}) where {L,E,C}
 	u = mgraph.vertex_map[lbl_u]
 	v = mgraph.vertex_map[lbl_v]
 	LightGraphs.add_edge!(mgraph.graph, u, v)
 	uv = unordered(u, v)
 	if !haskey(mgraph.edge_map, uv)
-		mgraph.edge_map[uv] = Set{E}()
+		mgraph.edge_map[uv] = edges
+	else
+		union!(mgraph.edge_map[uv], edges)
 	end
-	union!(mgraph.edge_map[uv], edges)
 end
 
-@inline function rem_edge!(mgraph::MultiGraph{L,E}, lbl_u::L, lbl_v::L, e::E) where {L,E}
+function rem_edge!(mgraph::MultiGraph{L,E}, lbl_u::L, lbl_v::L, e::E) where {L,E}
 	u = mgraph.vertex_map[lbl_u]
 	v = mgraph.vertex_map[lbl_v]
 	if has_edge(mgraph.graph, u, v)
 		uv = unordered(u, v)
 		delete!(mgraph.edge_map[uv], e)
-		if length(mgraph.edge_map[uv]) === 0
+		if isempty(mgraph.edge_map[uv])
+			LightGraphs.rem_edge!(mgraph.graph, u, v)
+			delete!(mgraph.edge_map, uv)
+		end
+	end
+end
+
+function rem_edges!(mgraph::MultiGraph{L,E,C}, lbl_u::L, lbl_v::L, edges::Union{Set{E},Vector{E},C}) where {L,E,C}
+	u = mgraph.vertex_map[lbl_u]
+	v = mgraph.vertex_map[lbl_v]
+	if has_edge(mgraph.graph, u, v)
+		uv = unordered(u, v)
+		setdiff!(mgraph.edge_map[uv], edges)
+		if isempty(mgraph.edge_map[uv])
 			LightGraphs.rem_edge!(mgraph.graph, u, v)
 			delete!(mgraph.edge_map, uv)
 		end
@@ -85,7 +100,7 @@ end
 # TODO: Check and simplify
 function incident_edges(mgraph::MultiGraph{L,E}, lbl::L) where {L,E}
 	u = mgraph.vertex_map[lbl]
-	return chain([mgraph.edge_map[unordered(u, v)] for v in neighbors(mgraph.graph, u)]...)
+	return [mgraph.edge_map[unordered(u, v)] for v in neighbors(mgraph.graph, u)]
 end
 
 # TODO: Check and simplify

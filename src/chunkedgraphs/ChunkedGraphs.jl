@@ -13,7 +13,6 @@ export getsupervoxelat
 
 include("core.jl")
 include("utils.jl")
-include("atomicedge.jl")
 include("vertex.jl")
 include("edge.jl")
 include("multigraph.jl")

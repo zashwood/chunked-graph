@@ -1,8 +1,7 @@
 using DataStructures
-using CloudVolume
+#using CloudVolume
 
 const Label           = UInt64
-const EdgeLabel           = Tuple{VLabel, VLabel}
 const Affinity         = Float32
 
 const ChunkID          = UInt32
@@ -63,16 +62,15 @@ end
 #=
 "Creates a bounding box as `Tuple{UnitRange{Int}, UnitRange{Int}, UnitRange{Int}}`. Coordinates are *chunk* coordinates."
 function tocuboid(chk::ChunkID)
-	@assert tolevel(chk) >= 1
+	@assert tolevel(chk) >= 2
 	if chk === TOP_ID || chk === SECOND_ID
 		return (typemin(Int):typemax(Int), typemin(Int):typemax(Int), typemin(Int):typemax(Int))::Cuboid
 	else
-		mult = 2^(tolevel(chk) - 1)
+		mult = 2^(tolevel(chk) - 2)
 		x, y, z = topos(chk)
 		return (x * mult : (x + 1) * mult, y * mult : (y + 1) * mult, z * mult : (z + 1) * mult)::Cuboid
 	end
 end
-
 # TODO: level > 1, switch to BoundingBoxes.jl?
 "Creates a bounding box as `Tuple{UnitRange{Int}, UnitRange{Int}, UnitRange{Int}}`. Coordinates are *chunk* coordinates."
 function tocuboid(lbls::Vector{Label}, dilate::Int = 0)
@@ -80,7 +78,7 @@ function tocuboid(lbls::Vector{Label}, dilate::Int = 0)
 	max_x, max_y, max_z = 0, 0, 0
 
 	for lbl in lbls
-		@assert tolevel(tochunk(lbl)) == 1
+		@assert tolevel(tochunk(lbl)) == 2
 		x, y, z = topos(tochunk(lbl))
 		min_x = min(min_x, x); max_x = max(max_x, x)
 		min_y = min(min_y, y); max_y = max(max_y, y)
@@ -109,9 +107,9 @@ end
 function parent(chunkid::ChunkID)
 	if tolevel(chunkid) >= MAX_DEPTH
 		return TOP_ID
-	elseif tolevel(chunkid) == 0
+	elseif tolevel(chunkid) == 1
 		x, y, z = topos(chunkid)
-		return tochunk(1, x, y, z)
+		return tochunk(2, x, y, z)
 	else
 		x, y, z = topos(chunkid)
 		return tochunk(tolevel(chunkid) + 1, fld(x, 2), fld(y, 2), fld(z, 2))
@@ -135,6 +133,11 @@ function stringify(chunkid::ChunkID)
 	return String("$(tolevel(chunkid))_$(x)_$(y)_$(z)")
 end
 
+function stringify(label::Label)
+	x, y, z = topos(tochunk(label))
+	return String("$(tolevel(tochunk(label)))_$(x)_$(y)_$(z)_$(tosegment(label))")
+end
+
 @inline function world_to_chunk(x::Integer, y::Integer, z::Integer)
 	return tochunk(1, fld(x, CHUNK_SIZE[1]), fld(y, CHUNK_SIZE[2]), fld(z, CHUNK_SIZE[3]))
 end
@@ -153,7 +156,7 @@ mutable struct ChunkedGraph{C} # {C} is necessary until Julia supports forward d
 	chunks::Dict{ChunkID, C}
 	lastused::PriorityQueue{ChunkID, Float64}
 	path::AbstractString
-	cloudvolume::CloudVolumeWrapper
+#	cloudvolume::CloudVolumeWrapper
 end
 
 function ChunkedGraph(graphpath::AbstractString, cloudpath::AbstractString)
@@ -162,7 +165,7 @@ function ChunkedGraph(graphpath::AbstractString, cloudpath::AbstractString)
 		Dict{ChunkID, Chunk}(),
 		PriorityQueue{ChunkID, Float64}(),
 		graphpath,
-		CloudVolumeWrapper(cloudpath, bounded = false, cache = true)
+		#CloudVolumeWrapper(cloudpath, bounded = false, cache = true)
 	)
 end
 
