@@ -1,7 +1,8 @@
 using DataStructures
 using CloudVolume
 
-const Label            = UInt64
+const Label           = UInt64
+const EdgeLabel           = Tuple{VLabel, VLabel}
 const Affinity         = Float32
 
 const ChunkID          = UInt32
@@ -41,6 +42,7 @@ end
 	return SegmentID(lbl & low_mask_32)
 end
 
+"Level zero means atomic vertex. Level >=1 means an aggregate vertex"
 @inline function tolevel(chk::ChunkID)
 	return UInt8(chk >> 24)
 end
@@ -57,6 +59,8 @@ end
 	return UInt8((lbl >> 48) & low_mask_8), UInt8((lbl >> 40) & low_mask_8), UInt8((lbl >> 32) & low_mask_8)
 end
 
+#This might be wrong with the new conventions. Need to check!
+#=
 "Creates a bounding box as `Tuple{UnitRange{Int}, UnitRange{Int}, UnitRange{Int}}`. Coordinates are *chunk* coordinates."
 function tocuboid(chk::ChunkID)
 	@assert tolevel(chk) >= 1
@@ -87,6 +91,7 @@ function tocuboid(lbls::Vector{Label}, dilate::Int = 0)
 			min_y - dilate : max_y + dilate,
 			min_z - dilate : max_z + dilate)::Cuboid
 end
+=#
 
 @inline function overlaps(r1::UnitRange, r2::UnitRange)
 	return r1.start <= r2.stop && r2.start <= r1.stop
@@ -104,15 +109,16 @@ end
 function parent(chunkid::ChunkID)
 	if tolevel(chunkid) >= MAX_DEPTH
 		return TOP_ID
-	elseif tolevel(chunkid) == MAX_DEPTH - 1
-		return SECOND_ID
+	elseif tolevel(chunkid) == 0
+		x, y, z = topos(chunkid)
+		return tochunk(1, x, y, z)
 	else
 		x, y, z = topos(chunkid)
 		return tochunk(tolevel(chunkid) + 1, fld(x, 2), fld(y, 2), fld(z, 2))
 	end
 end
 
-"Calculates the last/lowes common ancestor's ChunkID for two given chunk IDs"
+"Calculates the last/lowest common ancestor's ChunkID for two given chunk IDs"
 function lca(chunkid1::ChunkID, chunkid2::ChunkID)
 	# TODO: Ensure chunks are on same level
 	@assert tolevel(chunkid1) === tolevel(chunkid2)
