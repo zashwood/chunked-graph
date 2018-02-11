@@ -59,7 +59,6 @@ end
 end
 
 #This might be wrong with the new conventions. Need to check!
-#=
 "Creates a bounding box as `Tuple{UnitRange{Int}, UnitRange{Int}, UnitRange{Int}}`. Coordinates are *chunk* coordinates."
 function tocuboid(chk::ChunkID)
 	@assert tolevel(chk) >= 2
@@ -78,7 +77,7 @@ function tocuboid(lbls::Vector{Label}, dilate::Int = 0)
 	max_x, max_y, max_z = 0, 0, 0
 
 	for lbl in lbls
-		@assert tolevel(tochunk(lbl)) == 2
+		@assert tolevel(tochunk(lbl)) == 1
 		x, y, z = topos(tochunk(lbl))
 		min_x = min(min_x, x); max_x = max(max_x, x)
 		min_y = min(min_y, y); max_y = max(max_y, y)
@@ -89,7 +88,6 @@ function tocuboid(lbls::Vector{Label}, dilate::Int = 0)
 			min_y - dilate : max_y + dilate,
 			min_z - dilate : max_z + dilate)::Cuboid
 end
-=#
 
 @inline function overlaps(r1::UnitRange, r2::UnitRange)
 	return r1.start <= r2.stop && r2.start <= r1.stop
