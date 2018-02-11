@@ -97,15 +97,15 @@ function add_atomic_vertices!(cgraph::ChunkedGraph, lbls::Vector{Label})
 end
 
 function add_atomic_edge!(cgraph::ChunkedGraph, edge::AtomicEdge)
-	c = getchunk!(cgraph, lca(tochunkid(edge.u), tochunkid(edge.v)))
-	push!(c.added_edges, edge)
+	c = getchunk!(cgraph, lca(tochunk(edge.u), tochunk(edge.v)))
+	push!(c.added_edges, Edge(edge))
 	touch!(c)
 end
 
 function add_atomic_edges!(cgraph::ChunkedGraph, edges::Vector{AtomicEdge})
 	gc_enable(false)
 	for edge in edges
-		add_atomic_edge!(cgraph, edge)
+		add_atomic_edge!(cgraph, Edge(edge))
 	end
 	gc_enable(true)
 end

@@ -1,9 +1,13 @@
 using IterTools
 
 mutable struct Chunk
-	cgraph::ChunkedGraph{Chunk}
+	max_label::SegmentID
+end
+
+mutable struct Chunk
+	chunked_graph::ChunkedGraph{Chunk}
 	id::ChunkID
-	graph::MultiGraph
+	graph::MultiGraph{Label}
 	vertices::Dict{Label, Vertex}
 	parent::Union{Chunk, Void}
 	children::Vector{Chunk}
@@ -14,6 +18,8 @@ mutable struct Chunk
 	clean::Bool
 	modified::Bool
 	max_label::SegmentID
+
+	#todo: lazy loading for vertices
 
 	function Chunk(cgraph::ChunkedGraph, chunkid::ChunkID, vertices::Dict{Label,Vertex}, graph::MultiGraph, max_label::Label)
 		c = new(cgraph, chunkid, graph, vertices, nothing, Chunk[], Set{Vertex}(), Set{Vertex}(), Set{AtomicEdge}(), Set{AtomicEdge}(), true, false, max_label)
@@ -67,7 +73,9 @@ function uniquelabel!(c::Chunk)
 	return tolabel(c.id, c.max_label)
 end
 
+#TODO: use a queue to maintain order of operations
 function update!(c::Chunk)
+	#TODO: tag updates with time since updates don't commute
 	if c.clean
 		return
 	end
@@ -93,7 +101,7 @@ function update!(c::Chunk)
 	# Insert added vertices
 	# mark them as dirty_vertices as well
 	for v in c.added_vertices
-		@assert tochunkid(v) == c.id
+		@assert parent(tochunk(v)) == c.id
 		@assert v.parent == NULL_LABEL
 		@assert !haskey(c.vertices, v.label)
 		add_vertex!(c.graph, v.label)
@@ -101,7 +109,7 @@ function update!(c::Chunk)
 		push!(dirty_vertices,v)
 	end
 
-	# Delete all vertices and marked the vertices connected to 
+	# Delete vertices and mark the vertices connected to 
 	# the one we are deleting as dirty
 	for v in c.deleted_vertices
 		# for child in v.children
@@ -117,55 +125,61 @@ function update!(c::Chunk)
 		# this should delete all edges incident with v as well
 		rem_vertex!(c.graph, v.label)
 		delete!(c.vertices, v.label)
-	end
-
-	for e in c.deleted_edges
-		u, v = promote_to_lca!(c.cgraph, getvertex!(c.cgraph, e.u), getvertex!(c.cgraph, e.v))
-		@assert tochunkid(u) == tochunkid(c)
-		@assert tochunkid(v) == tochunkid(c)
-		rem_edge!(c.graph, u.label, v.label, e)
-		push!(dirty_vertices, u, v)
+		if v.parent != NULL_LABEL
+			delete!(c.connected_components, v.parent.label)
+		end
 	end
 
 	for e in c.added_edges
+		revalidate!(e)
 		# TODO: Needs better handling
-		try
-			u, v = promote_to_lca!(c.cgraph, getvertex!(c.cgraph, e.u), getvertex!(c.cgraph, e.v))
-			@assert tochunkid(u) == tochunkid(c)
-			@assert tochunkid(v) == tochunkid(c)
-			@assert haskey(c.vertices, u.label)
-			@assert haskey(c.vertices, v.label)
+		u, v = head(e), tail(e)
+		@assert tochunk(u) != tochunk(v) || (tolevel(u)==1 && tolevel(v)==1)
+		@assert parent(tochunk(u)) == parent(tochunk(c)) == tochunk(c)
+		@assert haskey(c.vertices, u.label)
+		@assert haskey(c.vertices, v.label)
 
-			@assert haskey(c.graph.vertex_map, u.label)
-			@assert haskey(c.graph.vertex_map, v.label)
-			add_edge!(c.graph, u.label, v.label, e)
-			push!(dirty_vertices, u, v)
-		catch #vertices might not exist anymore
+		@assert haskey(c.graph.vertex_map, u.label)
+		@assert haskey(c.graph.vertex_map, v.label)
+		add_edge!(c.graph, u.label, v.label)
+		push!(dirty_vertices, u, v)
+	end
+
+	for e in c.deleted_edges
+		u,v = head(e), tail(v)
+		@assert tochunk(u) != tochunk(v) || (tolevel(u)==1 && tolevel(v)==1)
+		@assert parent(tochunk(u)) == parent(tochunk(c)) == tochunk(c)
+		rem_edge!(c.graph, u.label, v.label)
+		push!(dirty_vertices, u, v)
+	end
+
+
+	cc = connected_components(c.graph, map(x->x.label, dirty_vertices))
+	for component in cc
+		if length(component) > 1
+			l = uniquelabel!(c)
+			new_vertex = Vertex(l, NULL_LABEL, component)
+			for child_label in component
+				c.vertices[child_label].parent = new_vertex.label
+			end
+			if !isroot(c)
+				push!(c.parent.added_vertices, new_vertex)
+			end
+		else
+			c.vertices[component[1]].parent = NULL_LABEL
 		end
 	end
 
 	if !isroot(c)
 		for v in chain(dirty_vertices, c.deleted_vertices)
 			if v.parent != NULL_LABEL
-				@assert tochunkid(v.parent) == tochunkid(c.parent)
+				@assert tochunk(v.parent) == tochunk(c)
+				@assert parent(tochunk(v.parent)) == tochunk(c.parent)
 				push!(c.parent.deleted_vertices, c.parent.vertices[v.parent])
 				v.parent = NULL_LABEL
 			end
 		end
-
-		cc = connected_components(c.graph, map(x->x.label, dirty_vertices))
-		for component in cc
-			if length(component) > 1
-				l = uniquelabel!(c.parent)
-				new_vertex = Vertex(l, NULL_LABEL, component)
-				for child_label in component
-					c.vertices[child_label].parent = new_vertex.label
-				end
-				push!(c.parent.added_vertices, new_vertex)
-			else
-				c.vertices[component[1]].parent = NULL_LABEL
-			end
-		end
+		
 		c.parent.clean = false
 	end
 

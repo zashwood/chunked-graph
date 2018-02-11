@@ -4,6 +4,9 @@ mutable struct Vertex
 	label::Label
 	parent::Label
 	children::Vector{Label}
+	#internal_edges::Array{Edge}
+	#invariant: all edges of internal_edges should be maximal edges
+	#invariant: children should form a connected graph via edges
 end
 
 # Comparison

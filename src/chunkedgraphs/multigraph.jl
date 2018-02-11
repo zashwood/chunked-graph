@@ -2,15 +2,15 @@ using LightGraphs
 
 import Base: sizehint!, show
 
-mutable struct MultiGraph
+mutable struct MultiGraph{L,E}
 	graph::Graph{Int}
-	vertex_map::Dict{Label, Int}
-	inverse_vertex_map::Dict{Int, Label}
-	edge_map::Dict{Tuple{Int, Int}, Set{AtomicEdge}}
+	vertex_map::Dict{L, Int}
+	inverse_vertex_map::Dict{Int, L}
+	edge_map::Dict{Tuple{Int, Int}, Set{E}}
+end
 
-	function MultiGraph()
-		return new(Graph(), Dict{Label, Int}(), Dict{Int, Label}(), Dict{Tuple{Int, Int}, Set{AtomicEdge}}())
-	end
+function MultiGraph{L, E}() where {L, E}
+	return MultiGraph(Graph(), Dict{L, Int}(), Dict{Int, L}(), Dict{Tuple{Int, Int}, Set{E}}())
 end
 
 show(io::IO, mgraph::MultiGraph) = print("MultiGraph with $(nv(mgraph.graph)) and $(ne(mgraph.graph)) edges")
@@ -29,14 +29,14 @@ end
 	upsize!(mgraph.edge_map, e_cnt)
 end
 
-@inline function add_vertex!(mgraph::MultiGraph, lbl::Label)
+@inline function add_vertex!(mgraph::MultiGraph{L,E}, lbl::L) where {L,E}
 	LightGraphs.add_vertex!(mgraph.graph)
 	vcnt = nv(mgraph.graph)
 	mgraph.vertex_map[lbl] = vcnt
 	mgraph.inverse_vertex_map[vcnt] = lbl
 end
 
-@inline function rem_vertex!(mgraph::MultiGraph, lbl::Label)
+@inline function rem_vertex!(mgraph::MultiGraph{L,E}, lbl::L) where {L,E}
 	u = mgraph.vertex_map[lbl]
 	for v in collect(neighbors(mgraph.graph, u))
 		LightGraphs.rem_edge!(mgraph.graph, u, v)
@@ -46,29 +46,29 @@ end
 	delete!(mgraph.inverse_vertex_map, u)
 end
 
-@inline function add_edge!(mgraph::MultiGraph, lbl_u::Label, lbl_v::Label, e::AtomicEdge)
+@inline function add_edge!(mgraph::MultiGraph{L,E}, lbl_u::L, lbl_v::L, e::E) where {L,E}
 	u = mgraph.vertex_map[lbl_u]
 	v = mgraph.vertex_map[lbl_v]
 	LightGraphs.add_edge!(mgraph.graph, u, v)
 	uv = unordered(u, v)
 	if !haskey(mgraph.edge_map, uv)
-		mgraph.edge_map[uv] = Set{AtomicEdge}()
+		mgraph.edge_map[uv] = Set{E}()
 	end
 	push!(mgraph.edge_map[uv], e)
 end
 
-@inline function add_edges!(mgraph::MultiGraph, lbl_u::Label, lbl_v::Label, edges::Vector{AtomicEdge})
+@inline function add_edges!(mgraph::MultiGraph{L,E}, lbl_u::L, lbl_v::L, edges::Vector{E}) where {L,E}
 	u = mgraph.vertex_map[lbl_u]
 	v = mgraph.vertex_map[lbl_v]
 	LightGraphs.add_edge!(mgraph.graph, u, v)
 	uv = unordered(u, v)
 	if !haskey(mgraph.edge_map, uv)
-		mgraph.edge_map[uv] = Set{AtomicEdge}()
+		mgraph.edge_map[uv] = Set{E}()
 	end
 	union!(mgraph.edge_map[uv], edges)
 end
 
-@inline function rem_edge!(mgraph::MultiGraph, lbl_u::Label, lbl_v::Label, e::AtomicEdge)
+@inline function rem_edge!(mgraph::MultiGraph{L,E}, lbl_u::L, lbl_v::L, e::E) where {L,E}
 	u = mgraph.vertex_map[lbl_u]
 	v = mgraph.vertex_map[lbl_v]
 	if has_edge(mgraph.graph, u, v)
@@ -82,18 +82,18 @@ end
 end
 
 # TODO: Check and simplify
-function incident_edges(mgraph::MultiGraph, lbl::Label)
+function incident_edges(mgraph::MultiGraph{L,E}, lbl::L) where {L,E}
 	u = mgraph.vertex_map[lbl]
 	return chain([mgraph.edge_map[unordered(u, v)] for v in neighbors(mgraph.graph, u)]...)
 end
 
 # TODO: Check and simplify
 "Returns a dictionary from edges to list of atomic edges"
-function induced_edges(mgraph::MultiGraph, lbls::Vector{Label})
+function induced_edges(mgraph::MultiGraph{L,E}, lbls::Vector{L}) where {L,E}
 	vertices = Int[mgraph.vertex_map[lbl] for lbl in lbls if haskey(mgraph.vertex_map, lbl)]
 	vertex_set = Set{Int}(vertices)
 
-	ret = Dict{Tuple{Label, Label}, Set{AtomicEdge}}()
+	ret = Dict{Tuple{L, L}, Set{E}}()
 	for u in vertex_set
 		for v in neighbors(mgraph.graph, u)
 			if u < v && v in vertex_set
@@ -106,17 +106,17 @@ function induced_edges(mgraph::MultiGraph, lbls::Vector{Label})
 end
 
 # TODO: Check and simplify
-function connected_components(mgraph::MultiGraph, lbls::Set{Label})
+function connected_components(mgraph::MultiGraph{L,E}, lbls::Set{L}) where {L,E}
 	lgraph = mgraph.graph
 	vertices = map(x->mgraph.vertex_map[x], lbls)
-	visited = Set{Label}()
+	visited = Set{L}()
 	sizehint!(visited, length(vertices))
 	components = Vector{Int}[]
-	to_visit = Set{Label}()
+	to_visit = Set{L}()
 
 	for v in vertices
 		if !(v in visited)
-			next_component = Label[]
+			next_component = L[]
 			empty!(to_visit)
 			push!(to_visit, v)
 
@@ -134,5 +134,5 @@ function connected_components(mgraph::MultiGraph, lbls::Set{Label})
 		end
 	end
 	#@assert length(vertices) == sum(map(length,components))
-	return Vector{Label}[map(x->mgraph.inverse_vertex_map[x], y) for y in components]
+	return Vector{L}[map(x->mgraph.inverse_vertex_map[x], y) for y in components]
 end
