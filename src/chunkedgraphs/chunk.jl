@@ -1,13 +1,9 @@
 using IterTools
 
 mutable struct Chunk
-	max_label::SegmentID
-end
-
-mutable struct Chunk
 	chunked_graph::ChunkedGraph{Chunk}
 	id::ChunkID
-	graph::MultiGraph{Label}
+	graph::MultiGraph{Label,AtomicEdge}
 	vertices::Dict{Label, Vertex}
 	parent::Union{Chunk, Void}
 	children::Vector{Chunk}
@@ -34,7 +30,8 @@ mutable struct Chunk
 end
 
 function Chunk(cgraph::ChunkedGraph, chunkid::ChunkID)
-	return Chunk(cgraph, chunkid, Dict{Label, Vertex}(), MultiGraph(), Label(0))
+	m=MultiGraph{Label,AtomicEdge,tolevel(chunkid)==1 ? SingletonEdgeSet : CompositeEdgeSet}()
+	return Chunk(cgraph, chunkid, Dict{Label, Vertex}(), m, Label(0))
 end
 
 @inline function tochunkid(c::Chunk)
@@ -93,6 +90,7 @@ function update!(c::Chunk)
 
 	#vertices which need updates
 	dirty_vertices = Set{Vertex}()
+	redo_edge_sets = EdgeSet[]
 
 	# FIXME: We should upsize with the difference of added minus deleted
 	upsize!(c.graph, length(c.added_vertices), length(c.added_edges))
@@ -116,43 +114,62 @@ function update!(c::Chunk)
 		#	@assert get_vertex(c.cgraph,child).parent==NULL_LABEL
 		# end
 
-		for e in incident_edges(c.graph, v.label)
-			if !in(e.u, c.deleted_vertices) || !in(e.v, c.deleted_vertices)
-				push!(c.added_edges, e)
-			end
+		for edge_set in incident_edges(c.graph, v.label)
+			push!(redo_edge_sets, edge_set)
 		end
 
 		# this should delete all edges incident with v as well
 		rem_vertex!(c.graph, v.label)
 		delete!(c.vertices, v.label)
-		if v.parent != NULL_LABEL
-			delete!(c.connected_components, v.parent.label)
+	end
+
+	for e in redo_edge_sets
+		for ee in revalidate!(c.chunked_graph, e)
+			u = c.vertices[head(ee)]
+			v = c.vertices[tail(ee)]
+			add_edges!(c.graph,u.label,v.label,ee)
+			push!(dirty_vertices, u, v)
 		end
 	end
 
 	for e in c.added_edges
-		revalidate!(e)
+		e=CompositeEdge(c.chunked_graph,e)
 		# TODO: Needs better handling
-		u, v = head(e), tail(e)
-		@assert tochunk(u) != tochunk(v) || (tolevel(u)==1 && tolevel(v)==1)
-		@assert parent(tochunk(u)) == parent(tochunk(c)) == tochunk(c)
+		u, v = c.vertices[head(e)], c.vertices[tail(e)]
+		@assert tochunk(u.label) != tochunk(v.label) || (tolevel(u.label)==1 && tolevel(v.label)==1)
+		@assert parent(tochunk(u.label)) == parent(tochunk(v.label)) == tochunk(c)
 		@assert haskey(c.vertices, u.label)
 		@assert haskey(c.vertices, v.label)
 
 		@assert haskey(c.graph.vertex_map, u.label)
 		@assert haskey(c.graph.vertex_map, v.label)
-		add_edge!(c.graph, u.label, v.label)
+		add_edges!(c.graph, u.label, v.label, e)
 		push!(dirty_vertices, u, v)
 	end
 
 	for e in c.deleted_edges
-		u,v = head(e), tail(v)
-		@assert tochunk(u) != tochunk(v) || (tolevel(u)==1 && tolevel(v)==1)
-		@assert parent(tochunk(u)) == parent(tochunk(c)) == tochunk(c)
-		rem_edge!(c.graph, u.label, v.label)
+		e=CompositeEdge(c.chunked_graph,e)
+		u, v = c.vertices[head(e)], c.vertices[tail(e)]
+		@assert is_valid(c.chunked_graph,e)
+		@assert parent(tochunk(head(e))) == parent(tochunk(tail(e))) == tochunk(c)
+		@assert tochunk(u.label) != tochunk(v.label) || (tolevel(u.label)==1 && tolevel(v.label)==1)
+		@assert parent(tochunk(u.label)) == parent(tochunk(v.label)) == tochunk(c)
+		rem_edges!(c.graph, u.label, v.label, e)
 		push!(dirty_vertices, u, v)
 	end
 
+	if !isroot(c)
+		for v in chain(dirty_vertices, c.deleted_vertices)
+			if v.parent != NULL_LABEL
+				@assert tochunk(v.parent) == tochunk(c)
+				@assert parent(tochunk(v.parent)) == tochunk(c.parent)
+				push!(c.parent.deleted_vertices, c.parent.vertices[v.parent])
+				v.parent = NULL_LABEL
+			end
+		end
+		
+		c.parent.clean = false
+	end
 
 	cc = connected_components(c.graph, map(x->x.label, dirty_vertices))
 	for component in cc
@@ -170,18 +187,11 @@ function update!(c::Chunk)
 		end
 	end
 
-	if !isroot(c)
-		for v in chain(dirty_vertices, c.deleted_vertices)
-			if v.parent != NULL_LABEL
-				@assert tochunk(v.parent) == tochunk(c)
-				@assert parent(tochunk(v.parent)) == tochunk(c.parent)
-				push!(c.parent.deleted_vertices, c.parent.vertices[v.parent])
-				v.parent = NULL_LABEL
-			end
-		end
-		
-		c.parent.clean = false
+	for v in values(c.vertices)
+		@assert v.parent == NULL_LABEL || tochunk(v.parent) == c.id
 	end
+
+
 
 	empty!(c.added_edges)
 	empty!(c.added_vertices)

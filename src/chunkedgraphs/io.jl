@@ -4,7 +4,7 @@ show(io::IO, cgraph::ChunkedGraph) = print("ChunkedGraph with $(length(cgraph.ch
 
 function loadchunk(cgraph::ChunkedGraph, chunkid::ChunkID)
 	vertex_map = Dict{Label, Vertex}()
-	mgraph = MultiGraph()
+	mgraph=MultiGraph{Label,AtomicEdge,tolevel(chunkid)==2 ? SingletonEdgeSet : CompositeEdgeSet}()
 	max_label = Label(0)
 
 	prefix = stringify(chunkid)
