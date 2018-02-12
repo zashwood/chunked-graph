@@ -12,6 +12,15 @@ const Cuboid           = Tuple{UnitRange{Int}, UnitRange{Int}, UnitRange{Int}}
 const INF_CAPACITY     = typemax(Affinity)
 const NULL_LABEL       = typemax(Label)
 const EMPTY_LABEL_LIST = Vector{Label}()
+const DISABLE_ASSERTS  = false
+
+if DISABLE_ASSERTS
+	macro assert(x...)
+		quote end
+	end
+end
+
+@assert !DISABLE_ASSERTS
 
 # TODO: level, x, y, z are currently fixed to 8 bit, respectively. Should be adjustable.
 const low_mask_8       = UInt32(0x000000FF)
@@ -41,7 +50,13 @@ end
 	return SegmentID(lbl & low_mask_32)
 end
 
-"Level zero means atomic vertex. Level >=1 means an aggregate vertex"
+"""
+Level 1 means atomic vertex. Level >=2 means an aggregate vertex
+Note that Level 1 chunks and Level 2 chunks are the SAME size
+A level n vertex can be completely contained in a level n chunk.
+It lives inside a level n+1 chunk, where it may be connected by
+edges to other level n vertices
+"""
 @inline function tolevel(chk::ChunkID)
 	return UInt8(chk >> 24)
 end
@@ -77,8 +92,8 @@ function tocuboid(lbls::Vector{Label}, dilate::Int = 0)
 	max_x, max_y, max_z = 0, 0, 0
 
 	for lbl in lbls
-		@assert tolevel(tochunk(lbl)) == 1
-		x, y, z = topos(tochunk(lbl))
+		@assert tolevel(tochunkid(lbl)) == 1
+		x, y, z = topos(tochunkid(lbl))
 		min_x = min(min_x, x); max_x = max(max_x, x)
 		min_y = min(min_y, y); max_y = max(max_y, y)
 		min_z = min(min_z, z); max_z = max(max_z, z)
@@ -103,11 +118,13 @@ end
 
 "Calculates the parent's ChunkID for a given chunk ID"
 function parent(chunkid::ChunkID)
-	if tolevel(chunkid) >= MAX_DEPTH
+	if tolevel(chunkid) == MAX_DEPTH - 1
+		return SECOND_ID
+	elseif chunkid == SECOND_ID
 		return TOP_ID
 	elseif tolevel(chunkid) == 1
 		x, y, z = topos(chunkid)
-		return tochunk(2, x, y, z)
+		return tochunkid(2, x, y, z)
 	else
 		x, y, z = topos(chunkid)
 		return tochunkid(tolevel(chunkid) + 1, fld(x, 2), fld(y, 2), fld(z, 2))
@@ -132,8 +149,8 @@ function stringify(chunkid::ChunkID)
 end
 
 function stringify(label::Label)
-	x, y, z = topos(tochunk(label))
-	return String("$(tolevel(tochunk(label)))_$(x)_$(y)_$(z)_$(tosegment(label))")
+	x, y, z = topos(tochunkid(label))
+	return String("$(tolevel(tochunkid(label)))_$(x)_$(y)_$(z)_$(tosegid(label))")
 end
 
 @inline function world_to_chunk(x::Integer, y::Integer, z::Integer)

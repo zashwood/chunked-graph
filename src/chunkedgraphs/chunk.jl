@@ -1,7 +1,7 @@
 using IterTools
 
 mutable struct Chunk
-	chunked_graph::ChunkedGraph{Chunk}
+	cgraph::ChunkedGraph{Chunk}
 	id::ChunkID
 	graph::MultiGraph{Label,AtomicEdge}
 	vertices::Dict{Label, Vertex}
@@ -27,6 +27,39 @@ mutable struct Chunk
 		end
 		return c
 	end
+end
+
+@inline function add_vertex!(c::Chunk, v::Vertex)
+	@assert !(v in c.deleted_vertices)
+	@assert parent(tochunkid(v.label)) == c.id
+	push!(c.added_vertices, v)
+end
+@inline function delete_vertex!(c::Chunk, v::Vertex)
+	@assert !(v in c.added_vertices)
+	@assert parent(tochunkid(v.label)) == c.id
+	push!(c.deleted_vertices, v)
+end
+@inline function add_edge!(c::Chunk, e::AtomicEdge)
+	@assert !(e in c.deleted_edges)
+	@assert begin
+		tmp = lca(tochunkid(head(e)), tochunkid(tail(e)))
+		if tolevel(tmp) == 1
+			tmp = parent(tmp)
+		end
+		tmp == c.id
+	end
+	push!(c.added_edges, e)
+end
+@inline function delete_edge!(c::Chunk, e::AtomicEdge)
+	@assert !(e in c.added_edges)
+	@assert begin
+		tmp = lca(tochunkid(head(e)), tochunkid(tail(e)))
+		if tolevel(tmp) == 1
+			tmp = parent(tmp)
+		end
+		tmp == c.id
+	end
+	push!(c.deleted_edges, e)
 end
 
 function Chunk(cgraph::ChunkedGraph, chunkid::ChunkID)
@@ -99,7 +132,7 @@ function update!(c::Chunk)
 	# Insert added vertices
 	# mark them as dirty_vertices as well
 	for v in c.added_vertices
-		@assert parent(tochunk(v)) == c.id
+		@assert parent(tochunkid(v)) == c.id
 		@assert v.parent == NULL_LABEL
 		@assert !haskey(c.vertices, v.label)
 		add_vertex!(c.graph, v.label)
@@ -124,7 +157,7 @@ function update!(c::Chunk)
 	end
 
 	for e in redo_edge_sets
-		for ee in revalidate!(c.chunked_graph, e)
+		for ee in revalidate!(c.cgraph, e)
 			u = c.vertices[head(ee)]
 			v = c.vertices[tail(ee)]
 			add_edges!(c.graph,u.label,v.label,ee)
@@ -133,11 +166,11 @@ function update!(c::Chunk)
 	end
 
 	for e in c.added_edges
-		e=CompositeEdge(c.chunked_graph,e)
+		e=CompositeEdge(c.cgraph,e)
 		# TODO: Needs better handling
 		u, v = c.vertices[head(e)], c.vertices[tail(e)]
-		@assert tochunk(u.label) != tochunk(v.label) || (tolevel(u.label)==1 && tolevel(v.label)==1)
-		@assert parent(tochunk(u.label)) == parent(tochunk(v.label)) == tochunk(c)
+		@assert tochunkid(u.label) != tochunkid(v.label) || (tolevel(u.label)==1 && tolevel(v.label)==1)
+		@assert parent(tochunkid(u.label)) == parent(tochunkid(v.label)) == tochunkid(c)
 		@assert haskey(c.vertices, u.label)
 		@assert haskey(c.vertices, v.label)
 
@@ -148,12 +181,12 @@ function update!(c::Chunk)
 	end
 
 	for e in c.deleted_edges
-		e=CompositeEdge(c.chunked_graph,e)
+		e=CompositeEdge(c.cgraph,e)
 		u, v = c.vertices[head(e)], c.vertices[tail(e)]
-		@assert is_valid(c.chunked_graph,e)
-		@assert parent(tochunk(head(e))) == parent(tochunk(tail(e))) == tochunk(c)
-		@assert tochunk(u.label) != tochunk(v.label) || (tolevel(u.label)==1 && tolevel(v.label)==1)
-		@assert parent(tochunk(u.label)) == parent(tochunk(v.label)) == tochunk(c)
+		@assert isvalid(c.cgraph,e)
+		@assert parent(tochunkid(head(e))) == parent(tochunkid(tail(e))) == tochunkid(c)
+		@assert tochunkid(u.label) != tochunkid(v.label) || (tolevel(u.label)==1 && tolevel(v.label)==1)
+		@assert parent(tochunkid(u.label)) == parent(tochunkid(v.label)) == tochunkid(c)
 		rem_edges!(c.graph, u.label, v.label, e)
 		push!(dirty_vertices, u, v)
 	end
@@ -161,9 +194,9 @@ function update!(c::Chunk)
 	if !isroot(c)
 		for v in chain(dirty_vertices, c.deleted_vertices)
 			if v.parent != NULL_LABEL
-				@assert tochunk(v.parent) == tochunk(c)
-				@assert parent(tochunk(v.parent)) == tochunk(c.parent)
-				push!(c.parent.deleted_vertices, c.parent.vertices[v.parent])
+				@assert tochunkid(v.parent) == tochunkid(c)
+				@assert parent(tochunkid(v.parent)) == tochunkid(c.parent)
+				delete_vertex!(c.parent, c.parent.vertices[v.parent])
 				v.parent = NULL_LABEL
 			end
 		end
@@ -188,7 +221,7 @@ function update!(c::Chunk)
 	end
 
 	for v in values(c.vertices)
-		@assert v.parent == NULL_LABEL || tochunk(v.parent) == c.id
+		@assert v.parent == NULL_LABEL || tochunkid(v.parent) == c.id
 	end
 
 
