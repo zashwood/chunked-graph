@@ -20,17 +20,6 @@ end
 
 const EdgeSet = Union{SingletonEdgeSet, CompositeEdgeSet}
 
-#=
-function SingletonEdgeSet()
-	SingletonEdgeSet(AtomicEdge(NULL_LABEL, NULL_LABEL,1f0),true)
-end
-function EdgeSet()
-	return CompositeEdgeSet(NULL_LABEL, NULL_LABEL, EdgeSet[])
-end
-=#
-
-
-
 function collect(c::CompositeEdgeSet)
 	return cat(1, map(collect, c.children)...)::Array{AtomicEdge}
 end
@@ -47,7 +36,7 @@ function CompositeEdge(c::ChunkedGraph, e::AtomicEdge)
 	@assert hasvertex!(c, head(e))
 	@assert hasvertex!(c, tail(e))
 	e=SingletonEdgeSet(e,true)
-	while !is_valid(c, e)
+	while !isvalid(c, e)
 		e=CompositeEdgeSet(force_get_parent!(c,head(e)), 
 						force_get_parent!(c,tail(e)),EdgeSet[e])
 	end
@@ -136,7 +125,7 @@ end
 function buildup!(c::ChunkedGraph, e::Union{CompositeEdgeSet,SingletonEdgeSet})
 	@assert hasvertex!(c, head(e))
 	@assert hasvertex!(c, tail(e))
-	while !is_valid(c, e)
+	while !isvalid(c, e)
 		e=CompositeEdgeSet(force_get_parent!(c,head(e)), 
 						force_get_parent!(c,tail(e)),EdgeSet[e])
 	end
@@ -154,7 +143,7 @@ function breakdown!(c::ChunkedGraph, e::SingletonEdgeSet)
 	return [e]
 end
 function revalidate!(c::ChunkedGraph, e::SingletonEdgeSet)
-	@assert is_valid(c,e)
+	@assert isvalid(c,e)
 	return e
 end
 
@@ -165,11 +154,11 @@ tail(e::SingletonEdgeSet)=tail(e.e)
 head(e::AtomicEdge)=e.u
 tail(e::AtomicEdge)=e.v
 
-function is_valid(chunked_graph, e)
+function isvalid(chunked_graph, e)
 	return 	hasvertex!(chunked_graph, head(e)) && 
 			hasvertex!(chunked_graph, tail(e)) &&
-			(tochunk(head(e)) != tochunk(tail(e)) || tolevel(head(e)) == 1) &&
-			parent(tochunk(head(e))) == parent(tochunk(tail(e)))
+			(tochunkid(head(e)) != tochunkid(tail(e)) || tolevel(head(e)) == 1) &&
+			parent(tochunkid(head(e))) == parent(tochunkid(tail(e)))
 end
 
 AtomicEdge(u, v) = AtomicEdge(Label(u), Label(v), Affinity(1))

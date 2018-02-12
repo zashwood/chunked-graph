@@ -38,7 +38,7 @@ cgraph = ChunkedGraph(rel(settings["graphpath"]), settings["cloudpath"])
 gc_enable(false)
 @time for f in filter(s->ismatch(r".*\.chunk", s), readdir(expanduser(rel(settings["graphpath"]))))
 	m = match(r"(\d+)_(\d+)_(\d+)_(\d+)\..*", f)
-	id = tochunk(map(x->parse(UInt32, x), m.captures)...)
+	id = tochunkid(map(x->parse(UInt32, x), m.captures)...)
 	if tolevel(id) >= 3
 		getchunk!(cgraph, id)
 	end
@@ -55,7 +55,7 @@ function gethandles(v_arr::Vector{UInt64})
 	handles = Dict{UInt32, UInt64}()
 	sizehint!(handles, Int(floor(1.25 * length(v_arr))))
 	for v in v_arr
-		handles[tosegment(v)] = v
+		handles[tosegid(v)] = v
 	end
 	return handles
 end
@@ -69,7 +69,7 @@ end
 function handle_leaves(id::AbstractString, query::Union{AbstractString, Void})
 	#@Logging.debug("handle_leaves($id)")
 	id = parse(UInt64, id)
-	if tochunk(id) == 0 # Lvl 1, a neuroglancer supervoxel, need to lookup chunk id
+	if tochunkid(id) == 0 # Lvl 1, a neuroglancer supervoxel, need to lookup chunk id
 		id = handles[id]
 	end
 
@@ -93,7 +93,7 @@ function handle_leaves(id::AbstractString, query::Union{AbstractString, Void})
 	segments = leaves!(cgraph, ancestor, 1, bbox)
 
 	println("$(now()): selected $(length(segments)) segments with ancestor $(ancestor.label) in region $(bbox)")
-	s = collect(Set{UInt64}(tosegment(x) for x in segments))
+	s = collect(Set{UInt64}(tosegid(x) for x in segments))
 
 	return HttpServer.Response(reinterpret(UInt8, s), headers)
 end
@@ -103,7 +103,7 @@ function handle_root(id::AbstractString)
 	id = parse(UInt64, id)
 	print("$(now()): Root for segment $(id): ")
 
-	if tochunk(id) == 0 # Lvl 1, a neuroglancer supervoxel, need to lookup chunk id
+	if tochunkid(id) == 0 # Lvl 1, a neuroglancer supervoxel, need to lookup chunk id
 		id = handles[id]
 	end
 
@@ -117,7 +117,7 @@ function handle_children(id::AbstractString)
 	#@Logging.debug("handle_children($id)")
 	id = parse(UInt64, id)
 
-	if tochunk(id) == 0 # Lvl 1, a neuroglancer supervoxel, need to lookup chunk id
+	if tochunkid(id) == 0 # Lvl 1, a neuroglancer supervoxel, need to lookup chunk id
 		id = handles[id]
 	end
 
@@ -127,8 +127,8 @@ function handle_children(id::AbstractString)
 		s = UInt64[]
 		println("$(now()): handle_children - v: $(v.label), (Level $(tolevel(v)))")
 	elseif tolevel(v) == 2 # Lvl 2, children are neuroglancer supervoxel, need to trim the chunk ids
-		s = UInt64[tosegment(child) for child in v.children]
-		println("$(now()): handle_children - v: $(v.label), (Level $(tolevel(v))), - children: $(simple_print([tosegment(child) for child in v.children]))")
+		s = UInt64[tosegid(child) for child in v.children]
+		println("$(now()): handle_children - v: $(v.label), (Level $(tolevel(v))), - children: $(simple_print([tosegid(child) for child in v.children]))")
 	else
 		#s = UInt64[child for child in v.children]
 		s = UInt64[child for child in leaves!(cgraph,v,2)] # J's hack to skip the middle layers and jump right to the pre-meshed lower level agglomeration.
@@ -166,7 +166,7 @@ function handle_split(data::Vector{UInt8})
 		push!(root_labels, root!(cgraph, getvertex!(cgraph, e.v)).label)
 	end
 
-	root_labels = Array{UInt64}(map(x->tolevel(tochunk(x)) == 1 ? tosegment(x) : x, collect(root_labels)))
+	root_labels = Array{UInt64}(map(x->tolevel(tochunkid(x)) == 1 ? tosegid(x) : x, collect(root_labels)))
 
 	println("$(now()): Split $(sources) and $(sinks) => $(simple_print(root_labels))")
 	return HttpServer.Response(reinterpret(UInt8, root_labels), headers)
@@ -183,7 +183,7 @@ function handle_merge(data::Vector{UInt8})
 	update!(cgraph)
 
 	root = root!(cgraph, getvertex!(cgraph, segments[1]))
-	println("$(now()): Merged $(tosegment(segments[1])) and $(tosegment(segments[2])) => $(root.label)")
+	println("$(now()): Merged $(tosegid(segments[1])) and $(tosegid(segments[2])) => $(root.label)")
 	
 	return HttpServer.Response(reinterpret(UInt8, [root.label]), headers)
 end

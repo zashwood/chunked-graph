@@ -4,22 +4,22 @@ function common_parent_vertices!(cgraph::ChunkedGraph, lbls::Vector{Label})
 	# Get unique set of root_vertices (not necessarily on top-level)
 	root_vertex_set = Set{Vertex}()
 	for lbl in lbls
-		@assert tolevel(tochunk(lbl)) == 1
+		@assert tolevel(tochunkid(lbl)) == 1
 		push!(root_vertex_set, root!(cgraph, getvertex!(cgraph, lbl)))
 	end
 
 	root_vertices = collect(root_vertex_set)
 
 	# Make sure all root_vertices are on the same level
-	max_level = max(map(r->tolevel(tochunk(r.label)), root_vertices)...)
+	max_level = max(map(r->tolevel(tochunkid(r.label)), root_vertices)...)
 	for i in eachindex(root_vertices)
-		while tolevel(tochunk(root_vertices[i].label)) < max_level
+		while tolevel(tochunkid(root_vertices[i].label)) < max_level
 			root_vertices[i] = promote!(cgraph, root_vertices[i])
 		end
 	end
 
 	# Make sure all root_vertices are in the same chunk (already on the same level)
-	while length(unique(map(r->tochunk(r), root_vertices))) !== 1
+	while length(unique(map(r->tochunkid(r), root_vertices))) !== 1
 		root_vertices = map(r->promote!(cgraph, r), root_vertices)
 	end
 
@@ -44,10 +44,10 @@ function induced_subgraph!(cgraph::ChunkedGraph, chunk::Chunk, vertices::Vector{
 			vertices = convert(Vector{Label}, vcat([vcat([c.vertices[v].children for v in filter(v->haskey(c.vertices, v), vertices)]...) for c in chunks]...));
 
 			# Make sure we got all the necessary chunks in memory
-			foreach(v->getchunk!(cgraph, tochunk(v)), vertices)
+			foreach(v->getchunk!(cgraph, tochunkid(v)), vertices)
 
 			# From the current set of chunks, collect all child chunks that still lie within the ROI
-			chunks = filter(subc->overlaps(tocuboid(tochunk(subc)), bbox), vcat([c.children for c in chunks]...))
+			chunks = filter(subc->overlaps(tocuboid(tochunkid(subc)), bbox), vcat([c.children for c in chunks]...))
 		end
 		lvl -= 1
 	end
@@ -63,7 +63,7 @@ end
 function mincut!(cgraph::ChunkedGraph, sources::Vector{Label}, sinks::Vector{Label})
 	bbox = tocuboid(vcat(sources, sinks))
 	root_vertices = common_parent_vertices!(cgraph, vcat(sources, sinks))
-	c = getchunk!(cgraph, parent(tochunk(root_vertices[1].label)))
+	c = getchunk!(cgraph, parent(tochunkid(root_vertices[1].label)))
 	atomic_vertices, atomic_edges = induced_subgraph!(cgraph, c, map(r->r.label, root_vertices), bbox)
 
 	# Relabel atomic vertex labels to get a dense matrix for LightGraphs
@@ -89,8 +89,8 @@ function mincut!(cgraph::ChunkedGraph, sources::Vector{Label}, sinks::Vector{Lab
 		# Don't split supervoxels at chunk boundaries
 		# FIXME: this hack only works because segment are currently unique
 		# across the whole dataset
-		capacities[encode[u], encode[v]] = tosegment(u) == tosegment(v) ? INF_CAPACITY : affinity 
-		capacities[encode[v], encode[u]] = tosegment(u) == tosegment(v) ? INF_CAPACITY : affinity
+		capacities[encode[u], encode[v]] = tosegid(u) == tosegid(v) ? INF_CAPACITY : affinity 
+		capacities[encode[v], encode[u]] = tosegid(u) == tosegid(v) ? INF_CAPACITY : affinity
 	end
 
 	# create a fake source and add edges with infinite weight to all sources

@@ -75,11 +75,11 @@ function getchunk!(cgraph::ChunkedGraph, chunkid::ChunkID)
 end
 
 function getvertex!(cgraph::ChunkedGraph, l::Label)
-	return getchunk!(cgraph, parent(tochunk(l))).vertices[l]
+	return getchunk!(cgraph, parent(tochunkid(l))).vertices[l]
 end
 
 function hasvertex!(cgraph::ChunkedGraph, l::Label)
-	return haskey(getchunk!(cgraph, parent(tochunk(l))).vertices,l)
+	return haskey(getchunk!(cgraph, parent(tochunkid(l))).vertices,l)
 end
 
 function save!(cgraph::ChunkedGraph, force::Bool = false)
@@ -94,7 +94,7 @@ function save!(c::Chunk)
 	@assert c.clean
 	
 	prefix = stringify(c.id)
-	path = expanduser(joinpath(c.chunked_graph.path, "$(prefix).chunk"))
+	path = expanduser(joinpath(c.cgraph.path, "$(prefix).chunk"))
 	print("Saving to $(path)...")
 	
 	buf = IOBuffer()
@@ -139,6 +139,6 @@ function evict!(c::Chunk)
 	end
 
 	filter!(x->x != c, c.parent.children)
-	delete!(c.chunked_graph.chunks, c.id)
-	dequeue!(c.chunked_graph.lastused, c.id)
+	delete!(c.cgraph.chunks, c.id)
+	dequeue!(c.cgraph.lastused, c.id)
 end
