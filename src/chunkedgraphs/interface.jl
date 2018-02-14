@@ -36,9 +36,16 @@ function promote!(cgraph::ChunkedGraph, vertex::Vertex)
 	@assert tochunkid(pv) == c.id
 	add_vertex!(c.parent.graph, pv.label)
 	c.parent.vertices[pv.label] = pv
-	c.parent.modified = true
-
+	c.modified=true
 	return pv
+end
+
+function force_get_parent!(c::ChunkedGraph, l::Label)
+	v = getvertex!(c,l)
+	if v.parent == NULL_LABEL
+		promote!(c, v)
+	end
+	return v.parent
 end
 
 #=

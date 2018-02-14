@@ -123,7 +123,7 @@ function update!(c::Chunk)
 
 	#vertices which need updates
 	dirty_vertices = Set{Vertex}()
-	redo_edge_sets = EdgeSet[]
+	redo_edge_sets = Set{EdgeSet}()
 
 	# FIXME: We should upsize with the difference of added minus deleted
 	upsize!(c.graph, length(c.added_vertices), length(c.added_edges))
