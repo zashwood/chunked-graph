@@ -7,45 +7,48 @@ import Base: sizehint!, show
 mutable struct MultiGraph{L,E,C}
 	graph::Graph{Int}
 	vertex_map::Dict{L, Int}
-	inverse_vertex_map::Dict{Int, L}
+	inverse_vertex_map::Array{L}
 	edge_map::Dict{Tuple{Int, Int}, C}
 end
 
 function MultiGraph{L,E,C}() where {L,E,C}
-	return MultiGraph{L,E,C}(Graph(), Dict{L, Int}(), Dict{Int, L}(), Dict{Tuple{Int, Int}, C}())
+	return MultiGraph{L,E,C}(Graph(), Dict{L, Int}(), L[], Dict{Tuple{Int, Int}, C}())
 end
 
 show(io::IO, mgraph::MultiGraph) = print("MultiGraph with $(nv(mgraph.graph)) and $(ne(mgraph.graph)) edges")
 
-@inline function sizehint!(mgraph::MultiGraph, v_cnt::Integer, e_cnt::Integer)
+function sizehint!(mgraph::MultiGraph, v_cnt::Integer, e_cnt::Integer)
 	sizehint!(mgraph.vertex_map, v_cnt)
 	sizehint!(mgraph.inverse_vertex_map, v_cnt)
 	sizehint!(mgraph.graph.fadjlist, v_cnt)
 	sizehint!(mgraph.edge_map, e_cnt)	
 end
 
-@inline function upsize!(mgraph::MultiGraph, v_cnt::Integer, e_cnt::Integer)
+function upsize!(mgraph::MultiGraph, v_cnt::Integer, e_cnt::Integer)
 	upsize!(mgraph.vertex_map, v_cnt)
 	upsize!(mgraph.inverse_vertex_map, v_cnt)
 	upsize!(mgraph.graph.fadjlist, v_cnt)
 	upsize!(mgraph.edge_map, e_cnt)
 end
 
-@inline function add_vertex!(mgraph::MultiGraph{L,E}, lbl::L) where {L,E}
+function add_vertex!(mgraph::MultiGraph{L,E}, lbl::L) where {L,E}
 	LightGraphs.add_vertex!(mgraph.graph)
 	vcnt = nv(mgraph.graph)
 	mgraph.vertex_map[lbl] = vcnt
+	if length(mgraph.inverse_vertex_map) < vcnt
+		resize!(mgraph.inverse_vertex_map,vcnt)
+	end
 	mgraph.inverse_vertex_map[vcnt] = lbl
 end
 
-@inline function rem_vertex!(mgraph::MultiGraph{L,E}, lbl::L) where {L,E}
+function rem_vertex!(mgraph::MultiGraph{L,E}, lbl::L) where {L,E}
 	u = mgraph.vertex_map[lbl]
 	for v in collect(neighbors(mgraph.graph, u))
 		LightGraphs.rem_edge!(mgraph.graph, u, v)
 		delete!(mgraph.edge_map, unordered(u, v))
 	end
 	delete!(mgraph.vertex_map, lbl)
-	delete!(mgraph.inverse_vertex_map, u)
+	#delete!(mgraph.inverse_vertex_map, u)
 end
 
 function add_edge!(mgraph::MultiGraph{L,E,C}, lbl_u::L, lbl_v::L, e::E) where {L,E,C}

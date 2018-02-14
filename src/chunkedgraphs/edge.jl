@@ -6,20 +6,23 @@ struct AtomicEdge
 	affinity::Affinity
 end
 
-type SingletonEdgeSet
+mutable struct SingletonEdgeSet
 	e::AtomicEdge
 	nonempty::Bool
 end
 
-#An Edge represents a set of AtomicEdges between leaves of u and v
-type CompositeEdgeSet
+#An EdgeSet represents a set of AtomicEdges between leaves of u and v
+struct CompositeEdgeSet
 	u::Label
 	v::Label
-	children::Array{Union{CompositeEdgeSet,SingletonEdgeSet}} #this should probably have size at most 4 from geometric constraints.
+	children::Array{Union{CompositeEdgeSet,SingletonEdgeSet}} 
+	#this should probably have size at most 4 from geometric constraints.
+	#todo: we can probably keep this sorted to speed up union! and setdiff!
 end
 
 const EdgeSet = Union{SingletonEdgeSet, CompositeEdgeSet}
 
+#TODO: don't allocate so many intermediate arrays
 function collect(c::CompositeEdgeSet)
 	return cat(1, map(collect, c.children)...)::Array{AtomicEdge}
 end
@@ -41,14 +44,6 @@ function CompositeEdge(c::ChunkedGraph, e::AtomicEdge)
 						force_get_parent!(c,tail(e)),EdgeSet[e])
 	end
 	return e
-end
-
-function force_get_parent!(c::ChunkedGraph, l::Label)
-	v = getvertex!(c,l)
-	if v.parent == NULL_LABEL
-		promote!(c, v)
-	end
-	return v.parent
 end
 
 function union!(e1::SingletonEdgeSet, e2::SingletonEdgeSet)
@@ -73,23 +68,19 @@ end
 function union!(e1::CompositeEdgeSet, e2::CompositeEdgeSet)
 	@assert head(e1)==head(e2)
 	@assert tail(e1)==tail(e2)
-
-	if tolevel(head(e1)) > 1
-		for c2 in e2.children
-			found=false
-			for c1 in e1.children
-				if (head(c1),tail(c1)) == (head(c2),tail(c2))
-					union!(c1,c2)
-					found=true
-					break
-				end
-			end
-			if !found
-				push!(e1.children, c2)
+	@assert tolevel(head(e1)) > 1
+	for c2 in e2.children
+		found=false
+		for c1 in e1.children
+			if (head(c1),tail(c1)) == (head(c2),tail(c2))
+				union!(c1,c2)
+				found=true
+				break
 			end
 		end
-	else
-		union!(e1.children, e2.children)
+		if !found
+			push!(e1.children, c2)
+		end
 	end
 	return e1
 end
@@ -154,9 +145,9 @@ tail(e::SingletonEdgeSet)=tail(e.e)
 head(e::AtomicEdge)=e.u
 tail(e::AtomicEdge)=e.v
 
-function isvalid(chunked_graph, e)
-	return 	hasvertex!(chunked_graph, head(e)) && 
-			hasvertex!(chunked_graph, tail(e)) &&
+function isvalid(cgraph, e)
+	return 	hasvertex!(cgraph, head(e)) && 
+			hasvertex!(cgraph, tail(e)) &&
 			(tochunkid(head(e)) != tochunkid(tail(e)) || tolevel(head(e)) == 1) &&
 			parent(tochunkid(head(e))) == parent(tochunkid(tail(e)))
 end
