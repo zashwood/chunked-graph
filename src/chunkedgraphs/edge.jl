@@ -4,6 +4,7 @@ struct AtomicEdge
 	u::Label
 	v::Label
 	affinity::Affinity
+	AtomicEdge(u::Label, v::Label, affinity::Affinity) = u < v ? new(u, v, affinity) : new(v, u, affinity)
 end
 
 mutable struct SingletonEdgeSet
@@ -15,7 +16,7 @@ end
 struct CompositeEdgeSet
 	u::Label
 	v::Label
-	children::Array{Union{CompositeEdgeSet,SingletonEdgeSet}} 
+	children::Union{Array{CompositeEdgeSet},Array{SingletonEdgeSet}} 
 	#this should probably have size at most 4 from geometric constraints.
 	#todo: we can probably keep this sorted to speed up union! and setdiff!
 end
@@ -24,7 +25,7 @@ const EdgeSet = Union{SingletonEdgeSet, CompositeEdgeSet}
 
 #TODO: don't allocate so many intermediate arrays
 function collect(c::CompositeEdgeSet)
-	return cat(1, map(collect, c.children)...)::Array{AtomicEdge}
+	return vcat(map(collect, c.children)...)::Array{AtomicEdge}
 end
 
 function collect(c::SingletonEdgeSet)
