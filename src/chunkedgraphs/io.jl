@@ -2,6 +2,34 @@ import Base: show
 
 show(io::IO, cgraph::ChunkedGraph) = print("ChunkedGraph with $(length(cgraph.chunks)) in memory")
 
+function write(io::IO, e::CompositeEdgeSet)
+	write(io, e.u)
+	write(io,e.v)
+	write(io,length(e.children))
+	for c in e.children
+		write(io,c)
+	end
+end
+
+function read(io::IO, e::CompositeEdgeSet)
+	u=read(io,Label)
+	v=read(io,Label)
+	n=read(io,Int64)
+	T=(tolevel(u)>=2 ? CompositeEdgeSet : SingletonEdgeSet)
+	children = T[read(io, T) for i in 1:n]
+	return CompositeEdgeSet(u, v, children)
+end
+
+function write(io::IO, e::SingletonEdgeSet)
+	write(io,e.u)
+	write(io,e.v)
+	write(io,e.nonempty)
+end
+
+function read(io::IO, e::SingletonEdgeSet)
+	return SingletonEdgeSet(read(io,Label),read(io,Label),read(io,Bool))
+end
+
 function loadchunk(cgraph::ChunkedGraph, chunkid::ChunkID)
 	vertex_map = Dict{Label, Vertex}()
 	mgraph=MultiGraph{Label,AtomicEdge,tolevel(chunkid)==2 ? SingletonEdgeSet : CompositeEdgeSet}()
@@ -13,6 +41,7 @@ function loadchunk(cgraph::ChunkedGraph, chunkid::ChunkID)
 		return Chunk(cgraph, chunkid, vertex_map, mgraph, max_label)
 	end
 
+	
 	f = open(path, "r")
 
 	# Check File Version
@@ -33,12 +62,11 @@ function loadchunk(cgraph::ChunkedGraph, chunkid::ChunkID)
 		add_vertex!(mgraph, label)
 		vertex_map[label] = Vertex(label, parent, children)
 	end
-
+	T=tolevel(chunkid) == 2 ? SingletonEdgeSet : CompositeEdgeSet
 	# Read EdgeMap
 	for i in range(1, e_cnt)
-		(u, v, atomic_edge_cnt) = read(f, UInt64, 3)
-		atomic_edges = read(f, AtomicEdge, atomic_edge_cnt)
-		add_edges!(mgraph, u, v, atomic_edges)
+		edge_set = read(f, T)
+		add_edges!(mgraph, e.u, e.v, edge_set)
 	end
 
 	close(f)
@@ -109,12 +137,9 @@ function save!(c::Chunk)
 		write(buf, UInt64(length(vertex.children))) # Vertex Children Count
 		write(buf, convert(Vector{UInt64}, vertex.children))
 	end
-
-	for (edge, atomic_edges) in c.graph.edge_map
-		write(buf, UInt64(c.graph.inverse_vertex_map[edge[1]]))
-		write(buf, UInt64(c.graph.inverse_vertex_map[edge[2]]))
-		write(buf, UInt64(length(atomic_edges)))
-		write(buf, convert(Vector{AtomicEdge}, collect(atomic_edges)))
+		
+	for edgeset in values(c.graph.edge_map)
+		write(buf, edgeset)
 	end
 
 	f = open(path, "w")
