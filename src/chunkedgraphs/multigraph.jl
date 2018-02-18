@@ -38,7 +38,7 @@ function add_vertex!(mgraph::MultiGraph{L,E}, lbl::L) where {L,E}
 	if length(mgraph.inverse_vertex_map) < vcnt
 		resize!(mgraph.inverse_vertex_map,vcnt)
 	end
-	mgraph.inverse_vertex_map[vcnt] = lbl
+	mgraph.inverse_vertex_map[UInt64(vcnt)] = lbl
 end
 
 function rem_vertex!(mgraph::MultiGraph{L,E}, lbl::L) where {L,E}
@@ -51,6 +51,7 @@ function rem_vertex!(mgraph::MultiGraph{L,E}, lbl::L) where {L,E}
 	#delete!(mgraph.inverse_vertex_map, u)
 end
 
+#=
 function add_edge!(mgraph::MultiGraph{L,E,C}, lbl_u::L, lbl_v::L, e::E) where {L,E,C}
 	u = mgraph.vertex_map[lbl_u]
 	v = mgraph.vertex_map[lbl_v]
@@ -61,6 +62,7 @@ function add_edge!(mgraph::MultiGraph{L,E,C}, lbl_u::L, lbl_v::L, e::E) where {L
 	end
 	push!(mgraph.edge_map[uv], e)
 end
+=#
 
 function add_edges!(mgraph::MultiGraph{L,E,C}, lbl_u::L, lbl_v::L, edges::Union{Set{E},Vector{E},C}) where {L,E,C}
 	u = mgraph.vertex_map[lbl_u]
@@ -70,10 +72,11 @@ function add_edges!(mgraph::MultiGraph{L,E,C}, lbl_u::L, lbl_v::L, edges::Union{
 	if !haskey(mgraph.edge_map, uv)
 		mgraph.edge_map[uv] = edges
 	else
-		union!(mgraph.edge_map[uv], edges)
+		mgraph.edge_map[uv] = union!(mgraph.edge_map[uv], edges)
 	end
 end
 
+#=
 function rem_edge!(mgraph::MultiGraph{L,E}, lbl_u::L, lbl_v::L, e::E) where {L,E}
 	u = mgraph.vertex_map[lbl_u]
 	v = mgraph.vertex_map[lbl_v]
@@ -86,13 +89,14 @@ function rem_edge!(mgraph::MultiGraph{L,E}, lbl_u::L, lbl_v::L, e::E) where {L,E
 		end
 	end
 end
+=#
 
 function rem_edges!(mgraph::MultiGraph{L,E,C}, lbl_u::L, lbl_v::L, edges::Union{Set{E},Vector{E},C}) where {L,E,C}
 	u = mgraph.vertex_map[lbl_u]
 	v = mgraph.vertex_map[lbl_v]
 	if has_edge(mgraph.graph, u, v)
 		uv = unordered(u, v)
-		setdiff!(mgraph.edge_map[uv], edges)
+		mgraph.edge_map[uv] = setdiff!(mgraph.edge_map[uv], edges)
 		if isempty(mgraph.edge_map[uv])
 			LightGraphs.rem_edge!(mgraph.graph, u, v)
 			delete!(mgraph.edge_map, uv)
@@ -134,14 +138,14 @@ end
 function connected_components(mgraph::MultiGraph{L,E}, lbls::Set{L}) where {L,E}
 	lgraph = mgraph.graph
 	vertices = map(x->mgraph.vertex_map[x], lbls)
-	visited = Set{L}()
+	visited = Set{Int}()
 	sizehint!(visited, length(vertices))
 	components = Vector{Int}[]
-	to_visit = Set{L}()
+	to_visit = Set{Int}()
 
 	for v in vertices
 		if !(v in visited)
-			next_component = L[]
+			next_component = Int[]
 			empty!(to_visit)
 			push!(to_visit, v)
 

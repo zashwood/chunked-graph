@@ -3,7 +3,7 @@ using IterTools
 mutable struct Chunk
 	cgraph::ChunkedGraph{Chunk}
 	id::ChunkID
-	graph::MultiGraph{Label,AtomicEdge}
+	graph::MultiGraph{Label,AtomicEdge,CompositeEdgeSet}
 	vertices::Dict{Label, Vertex}
 	parent::Union{Chunk, Void}
 	children::Vector{Chunk}
@@ -63,7 +63,7 @@ end
 end
 
 function Chunk(cgraph::ChunkedGraph, chunkid::ChunkID)
-	m=MultiGraph{Label,AtomicEdge,tolevel(chunkid)==1 ? SingletonEdgeSet : CompositeEdgeSet}()
+	m=MultiGraph{Label,AtomicEdge,CompositeEdgeSet}()
 	return Chunk(cgraph, chunkid, Dict{Label, Vertex}(), m, Label(0))
 end
 
@@ -97,6 +97,10 @@ function touch!(c::Chunk)
 	end
 end
 
+function gentle_touch!(c::Chunk)
+	c.cgraph.lastused[c.id] = time_ns()
+end
+
 function uniquelabel!(c::Chunk)
 	#TODO: Should erase clean flag?
 	c.max_label += 1
@@ -114,6 +118,9 @@ function update!(c::Chunk)
 	for child in c.children
 		update!(child)
 	end
+	for child in c.children
+		@assert child.clean
+	end
 
 	# Print debug messages
 	# println("updating $(tolevel(c.id)), $(map(Int,topos(c.id))) V: +$(length(c.added_vertices))/-$(length(c.deleted_vertices)), E: +$(length(c.added_edges))/-$(length(c.deleted_edges))")
@@ -123,7 +130,7 @@ function update!(c::Chunk)
 
 	#vertices which need updates
 	dirty_vertices = Set{Vertex}()
-	redo_edge_sets = Set{EdgeSet}()
+	redo_edge_sets = Set{CompositeEdgeSet}()
 
 	# FIXME: We should upsize with the difference of added minus deleted
 	upsize!(c.graph, length(c.added_vertices), length(c.added_edges))
@@ -165,8 +172,12 @@ function update!(c::Chunk)
 		end
 	end
 
-	for e in c.added_edges
-		e=CompositeEdge(c.cgraph,e)
+	for child in c.children
+		@assert child.clean
+	end
+
+	for ae in c.added_edges
+		e=CompositeEdge(c.cgraph,ae)
 		# TODO: Needs better handling
 		u, v = c.vertices[head(e)], c.vertices[tail(e)]
 		@assert tochunkid(u.label) != tochunkid(v.label) || (tolevel(u.label)==1 && tolevel(v.label)==1)
@@ -180,8 +191,8 @@ function update!(c::Chunk)
 		push!(dirty_vertices, u, v)
 	end
 
-	for e in c.deleted_edges
-		e=CompositeEdge(c.cgraph,e)
+	for ae in c.deleted_edges
+		e=CompositeEdge(c.cgraph,ae)
 		u, v = c.vertices[head(e)], c.vertices[tail(e)]
 		@assert isvalid(c.cgraph,e)
 		@assert parent(tochunkid(head(e))) == parent(tochunkid(tail(e))) == tochunkid(c)
@@ -192,11 +203,25 @@ function update!(c::Chunk)
 	end
 
 	if !isroot(c)
-		for v in chain(dirty_vertices, c.deleted_vertices)
+		#duplicated code because chain(dirty_vertices, c.deleted_vertices) is not type inferred
+		#TODO: investigate or refactor
+		for v in dirty_vertices
 			if v.parent != NULL_LABEL
 				@assert tochunkid(v.parent) == tochunkid(c)
 				@assert parent(tochunkid(v.parent)) == tochunkid(c.parent)
-				delete_vertex!(c.parent, c.parent.vertices[v.parent])
+				if haskey(c.parent.vertices, v.parent)
+					delete_vertex!(c.parent, c.parent.vertices[v.parent])
+				end
+				v.parent = NULL_LABEL
+			end
+		end
+		for v in c.deleted_vertices
+			if v.parent != NULL_LABEL
+				@assert tochunkid(v.parent) == tochunkid(c)
+				@assert parent(tochunkid(v.parent)) == tochunkid(c.parent)
+				if haskey(c.parent.vertices, v.parent)
+					delete_vertex!(c.parent, c.parent.vertices[v.parent])
+				end
 				v.parent = NULL_LABEL
 			end
 		end
@@ -222,6 +247,7 @@ function update!(c::Chunk)
 
 	for v in values(c.vertices)
 		@assert v.parent == NULL_LABEL || tochunkid(v.parent) == c.id
+		@assert parent(tochunkid(v.label)) == c.id
 	end
 
 

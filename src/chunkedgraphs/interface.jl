@@ -23,6 +23,7 @@ end
 
 function promote!(cgraph::ChunkedGraph, vertex::Vertex)
 	c = getchunk!(cgraph, parent(tochunkid(vertex)))
+	@assert haskey(c.vertices, vertex.label)
 	@assert tolevel(c) < MAX_DEPTH
 
 	@assert c.clean
@@ -37,6 +38,8 @@ function promote!(cgraph::ChunkedGraph, vertex::Vertex)
 	add_vertex!(c.parent.graph, pv.label)
 	c.parent.vertices[pv.label] = pv
 	c.modified=true
+	@assert hasvertex!(cgraph, vertex.parent)
+	@assert tochunkid(vertex.parent) == parent(tochunkid(vertex.label))
 	return pv
 end
 
@@ -45,6 +48,7 @@ function force_get_parent!(c::ChunkedGraph, l::Label)
 	if v.parent == NULL_LABEL
 		promote!(c, v)
 	end
+	@assert hasvertex!(c, v.parent)
 	return v.parent
 end
 
@@ -119,6 +123,14 @@ function add_atomic_edges!(cgraph::ChunkedGraph, edges::Vector{AtomicEdge})
 	gc_enable(false)
 	for edge in edges
 		add_atomic_edge!(cgraph, edge)
+	end
+	gc_enable(true)
+end
+
+function add_atomic_edges!(cgraph::ChunkedGraph, edges::Vector{Tuple{Label,Label}})
+	gc_enable(false)
+	for edge in edges
+		add_atomic_edge!(cgraph, AtomicEdge(edge[1],edge[2]))
 	end
 	gc_enable(true)
 end

@@ -10,9 +10,10 @@ const SegmentID        = UInt32
 const Cuboid           = Tuple{UnitRange{Int}, UnitRange{Int}, UnitRange{Int}}
 
 const INF_CAPACITY     = typemax(Affinity)
+const MIN_AFFINITY     = typemin(Affinity)
 const NULL_LABEL       = typemax(Label)
 const EMPTY_LABEL_LIST = Vector{Label}()
-const DISABLE_ASSERTS  = false
+const DISABLE_ASSERTS  = true
 
 if DISABLE_ASSERTS
 	macro assert(x...)
@@ -145,12 +146,12 @@ end
 "Create a string of form 'lvl_x_y_z' for a given ChunkID"
 function stringify(chunkid::ChunkID)
 	x, y, z = topos(chunkid)
-	return String("$(tolevel(chunkid))_$(x)_$(y)_$(z)")
+	return "$(tolevel(chunkid))_$(x)_$(y)_$(z)"
 end
 
 function stringify(label::Label)
 	x, y, z = topos(tochunkid(label))
-	return String("$(tolevel(tochunkid(label)))_$(x)_$(y)_$(z)_$(tosegid(label))")
+	return "$(tolevel(tochunkid(label)))_$(x)_$(y)_$(z)_$(tosegid(label))"
 end
 
 @inline function world_to_chunk(x::Integer, y::Integer, z::Integer)
@@ -164,23 +165,24 @@ const SECOND_ID        = tochunkid(MAX_DEPTH, 0, 0, 0)
 
 const CHUNK_SIZE       = (512, 512, 64)
 
-const CACHESIZE = 40000
-eviction_mode = false #TODO: fix this
+const CACHESIZE = 100000
 
 mutable struct ChunkedGraph{C} # {C} is necessary until Julia supports forward declaration of Chunk
 	chunks::Dict{ChunkID, C}
-	lastused::PriorityQueue{ChunkID, Float64}
+	lastused::PriorityQueue{ChunkID, UInt64}
 	path::AbstractString
 #	cloudvolume::CloudVolumeWrapper
+	eviction_mode::Bool
 end
 
 function ChunkedGraph(graphpath::AbstractString, cloudpath::AbstractString)
 	@assert isdir(graphpath)
 	return ChunkedGraph{Chunk}(
 		Dict{ChunkID, Chunk}(),
-		PriorityQueue{ChunkID, Float64}(),
+		PriorityQueue{ChunkID, UInt64}(),
 		graphpath,
 		#CloudVolumeWrapper(cloudpath, bounded = false, cache = true)
+		false
 	)
 end
 

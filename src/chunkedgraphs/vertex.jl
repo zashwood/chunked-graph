@@ -13,7 +13,8 @@ end
 ==(lhs::Vertex, rhs::Vertex) = isequal(lhs.label, rhs.label)
 isequal(lhs::Vertex, rhs::Vertex) = lhs == rhs
 
-hash(v::Vertex, seed::UInt) = hash(v.label, hash(:Vertex, seed))
+#hash(v::Vertex, seed::UInt) = hash(v.label, hash(:Vertex, seed))
+hash(v::Vertex, seed::UInt) = hash(v.label, seed)
 
 # Conversion / Getters
 @inline function tochunkid(v::Vertex)
