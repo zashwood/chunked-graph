@@ -1,5 +1,4 @@
 using LightGraphs
-#using SmallSets
 
 import Base: sizehint!, show
 

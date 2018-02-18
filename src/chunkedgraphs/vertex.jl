@@ -13,12 +13,12 @@ isequal(lhs::Vertex, rhs::Vertex) = lhs == rhs
 hash(v::Vertex, seed::UInt) = hash(v.label, hash(:Vertex, seed))
 
 # Conversion / Getters
-@inline function tochunk(v::Vertex)
-	return tochunk(v.label)
+@inline function tochunkid(v::Vertex)
+	return tochunkid(v.label)
 end
 
-@inline function tosegment(v::Vertex)
-	return tosegment(v.label)
+@inline function tosegid(v::Vertex)
+	return tosegid(v.label)
 end
 
 @inline function tolevel(v::Vertex)

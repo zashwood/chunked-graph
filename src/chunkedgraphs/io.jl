@@ -14,14 +14,14 @@ function loadchunk(cgraph::ChunkedGraph, chunkid::ChunkID)
 	end
 
 	f = open(path, "r")
-	
+
 	# Check File Version
 	version = read(f, UInt64)
 	@assert version === UInt64(1)
-	
+
 	# Read Chunk Info
 	(max_label, v_cnt, e_cnt) = read(f, UInt64, 3)
-	
+
 	# Allocate Graph
 	sizehint!(mgraph, floor(UInt32, 1.5 * v_cnt), floor(UInt32, 1.5 * e_cnt))
 	sizehint!(vertex_map, floor(UInt32, 1.5 * v_cnt))
@@ -33,14 +33,14 @@ function loadchunk(cgraph::ChunkedGraph, chunkid::ChunkID)
 		add_vertex!(mgraph, label)
 		vertex_map[label] = Vertex(label, parent, children)
 	end
-	
+
 	# Read EdgeMap
 	for i in range(1, e_cnt)
 		(u, v, atomic_edge_cnt) = read(f, UInt64, 3)
 		atomic_edges = read(f, AtomicEdge, atomic_edge_cnt)
 		add_edges!(mgraph, u, v, atomic_edges)
 	end
-	
+
 	close(f)
 	return Chunk(cgraph, chunkid, vertex_map, mgraph, max_label)
 end
@@ -75,7 +75,7 @@ function getchunk!(cgraph::ChunkedGraph, chunkid::ChunkID)
 end
 
 function getvertex!(cgraph::ChunkedGraph, l::Label)
-	return getchunk!(cgraph, tochunk(l)).vertices[l]
+	return getchunk!(cgraph, tochunkid(l)).vertices[l]
 end
 
 function save!(cgraph::ChunkedGraph, force::Bool = false)
@@ -88,31 +88,31 @@ end
 
 function save!(c::Chunk)
 	@assert c.clean
-	
+
 	prefix = stringify(c.id)
-	path = expanduser(joinpath(c.chunked_graph.path, "$(prefix).chunk"))
+	path = expanduser(joinpath(c.cgraph.path, "$(prefix).chunk"))
 	print("Saving to $(path)...")
-	
+
 	buf = IOBuffer()
 	write(buf, UInt64(1)) # Version
 	write(buf, UInt64(c.max_label)) # Max SegID
 	write(buf, UInt64(length(c.vertices))) # Vertex Count
 	write(buf, UInt64(length(LightGraphs.edges(c.graph.g)))) # Edge Count
-		
+
 	for vertex in values(c.vertices)
 		write(buf, UInt64(vertex.label)) # Vertex Label
 		write(buf, UInt64(vertex.parent)) # Vertex Parent
 		write(buf, UInt64(length(vertex.children))) # Vertex Children Count
 		write(buf, convert(Vector{UInt64}, vertex.children))
 	end
-		
+
 	for (edge, atomic_edges) in c.graph.edge_map
 		write(buf, UInt64(c.graph.inverse_vertex_map[edge[1]]))
 		write(buf, UInt64(c.graph.inverse_vertex_map[edge[2]]))
 		write(buf, UInt64(length(atomic_edges)))
 		write(buf, convert(Vector{AtomicEdge}, collect(atomic_edges)))
 	end
-	
+
 	f = open(path, "w")
 	write(f, buf.data)
 	close(f)
@@ -135,6 +135,6 @@ function evict!(c::Chunk)
 	end
 
 	filter!(x->x != c, c.parent.children)
-	delete!(c.chunked_graph.chunks, c.id)
-	dequeue!(c.chunked_graph.lastused, c.id)
+	delete!(c.cgraph.chunks, c.id)
+	dequeue!(c.cgraph.lastused, c.id)
 end

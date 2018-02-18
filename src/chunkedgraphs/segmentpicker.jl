@@ -1,6 +1,6 @@
 function getsupervoxelat(cgraph::ChunkedGraph, start_label::Label, voxel_pos::Tuple{Int, Int, Int})
-	if tochunk(start_label) == 0
-		start_label = tolabel(world_to_chunk(voxel_pos[1], voxel_pos[2], voxel_pos[3]), tosegment(start_label))
+	if tochunkid(start_label) == 0
+		start_label = tolabel(world_to_chunk(voxel_pos[1], voxel_pos[2], voxel_pos[3]), tosegid(start_label))
 		# FIXME: If we deal with very coarse supervoxel meshes near chunk boundaries, the picked position might lie within
 		#        the neighboring chunk which doesn't contain the supervoxel
 	end

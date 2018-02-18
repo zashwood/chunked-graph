@@ -22,22 +22,22 @@ const low_mask_32      = UInt64(0x00000000FFFFFFFF)
 end
 
 @inline function tolabel(lvl::Integer, x::Integer, y::Integer, z::Integer, seg::Integer)
-	return tolabel(tochunk(lvl, x, y, z), SegmentID(seg))
+	return tolabel(tochunkid(lvl, x, y, z), SegmentID(seg))
 end
 
-@inline function tochunk(lvl::UInt32, x::UInt32, y::UInt32, z::UInt32)
+@inline function tochunkid(lvl::UInt32, x::UInt32, y::UInt32, z::UInt32)
 	return ChunkID((lvl << 24) | (x << 16) | (y << 8) | z)
 end
 
-@inline function tochunk(lvl::Integer, x::Integer, y::Integer, z::Integer)
-	return tochunk(UInt32(lvl), UInt32(x), UInt32(y), UInt32(z))
+@inline function tochunkid(lvl::Integer, x::Integer, y::Integer, z::Integer)
+	return tochunkid(UInt32(lvl), UInt32(x), UInt32(y), UInt32(z))
 end
 
-@inline function tochunk(lbl::Label)
+@inline function tochunkid(lbl::Label)
 	return ChunkID(lbl >> 32)
 end
 
-@inline function tosegment(lbl::Label)
+@inline function tosegid(lbl::Label)
 	return SegmentID(lbl & low_mask_32)
 end
 
@@ -76,8 +76,8 @@ function tocuboid(lbls::Vector{Label}, dilate::Int = 0)
 	max_x, max_y, max_z = 0, 0, 0
 
 	for lbl in lbls
-		@assert tolevel(tochunk(lbl)) == 1
-		x, y, z = topos(tochunk(lbl))
+		@assert tolevel(tochunkid(lbl)) == 1
+		x, y, z = topos(tochunkid(lbl))
 		min_x = min(min_x, x); max_x = max(max_x, x)
 		min_y = min(min_y, y); max_y = max(max_y, y)
 		min_z = min(min_z, z); max_z = max(max_z, z)
@@ -108,7 +108,7 @@ function parent(chunkid::ChunkID)
 		return SECOND_ID
 	else
 		x, y, z = topos(chunkid)
-		return tochunk(tolevel(chunkid) + 1, fld(x, 2), fld(y, 2), fld(z, 2))
+		return tochunkid(tolevel(chunkid) + 1, fld(x, 2), fld(y, 2), fld(z, 2))
 	end
 end
 
@@ -130,13 +130,13 @@ function stringify(chunkid::ChunkID)
 end
 
 @inline function world_to_chunk(x::Integer, y::Integer, z::Integer)
-	return tochunk(1, fld(x, CHUNK_SIZE[1]), fld(y, CHUNK_SIZE[2]), fld(z, CHUNK_SIZE[3]))
+	return tochunkid(1, fld(x, CHUNK_SIZE[1]), fld(y, CHUNK_SIZE[2]), fld(z, CHUNK_SIZE[3]))
 end
 
 
 const MAX_DEPTH        = 8
-const TOP_ID           = tochunk(MAX_DEPTH + 1, 0, 0, 0)
-const SECOND_ID        = tochunk(MAX_DEPTH, 0, 0, 0)
+const TOP_ID           = tochunkid(MAX_DEPTH + 1, 0, 0, 0)
+const SECOND_ID        = tochunkid(MAX_DEPTH, 0, 0, 0)
 
 const CHUNK_SIZE       = (512, 512, 64)
 
@@ -159,4 +159,3 @@ function ChunkedGraph(graphpath::AbstractString, cloudpath::AbstractString)
 		CloudVolumeWrapper(cloudpath, bounded = false, cache = true)
 	)
 end
-
