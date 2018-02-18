@@ -91,7 +91,7 @@ function rem_edges!(mgraph::MultiGraph{L,E,C}, lbl_u::L, lbl_v::L, edges::Union{
 	v = mgraph.vertex_map[lbl_v]
 	if has_edge(mgraph.graph, u, v)
 		uv = unordered(u, v)
-		setdiff!(mgraph.edge_map[uv], edges)
+		mgraph.edge_map[uv] = setdiff!(mgraph.edge_map[uv], edges)
 		if isempty(mgraph.edge_map[uv])
 			LightGraphs.rem_edge!(mgraph.graph, u, v)
 			delete!(mgraph.edge_map, uv)

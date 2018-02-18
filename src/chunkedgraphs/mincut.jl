@@ -26,7 +26,6 @@ function common_parent_vertices!(cgraph::ChunkedGraph, lbls::Vector{Label})
 	return root_vertices
 end
 
-
 function induced_subgraph!(cgraph::ChunkedGraph, chunk::Chunk, vertices::Vector{Label}, bbox::Cuboid)
 	atomicedges = AtomicEdge[]
 	chunks = [chunk]

@@ -23,7 +23,7 @@ end
 function write(io::IO, e::SingletonEdgeSet)
 	write(io,e.u)
 	write(io,e.v)
-	write(io,e.nonempty)
+	write(io,e.empty)
 end
 
 function read(io::IO, e::SingletonEdgeSet)
