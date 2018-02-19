@@ -11,6 +11,8 @@ function test_cases()
 		end
 
 		@testset "add test_add_atomic_node" begin
+			run(`rm -rf /tmp/graph`)
+			mkdir("/tmp/graph")
 			G = ChunkedGraph("/tmp/graph", "gs://neuroglancer/removeme/wow")
 			label = tolabel(1,0,0,0,1)
 			add_atomic_vertex!(G, label)
@@ -21,6 +23,8 @@ function test_cases()
 		end
 
 		@testset "test_circle" begin
+			run(`rm -rf /tmp/graph`)
+			mkdir("/tmp/graph")
 			G = ChunkedGraph("/tmp/graph", "gs://neuroglancer/removeme/wow")
 			add_atomic_vertex!(G, tolabel(1,0,0,0,3))
 			add_atomic_vertex!(G, tolabel(1,0,0,0,2))
@@ -37,6 +41,8 @@ function test_cases()
 		end
 
 		@testset "test_circle_external_edge" begin
+			run(`rm -rf /tmp/graph`)
+			mkdir("/tmp/graph")
 			G = ChunkedGraph("/tmp/graph", "gs://neuroglancer/removeme/wow")
 			add_atomic_vertex!(G, tolabel(1,0,0,1,3))
 			add_atomic_vertex!(G, tolabel(1,0,0,0,2))
@@ -51,6 +57,8 @@ function test_cases()
 		end
 
 		@testset "delete_edge_same_chunk" begin
+			run(`rm -rf /tmp/graph`)
+			mkdir("/tmp/graph")
 			G = ChunkedGraph("/tmp/graph", "gs://neuroglancer/removeme/wow")
 			add_atomic_vertex!(G, tolabel(1,0,0,0, 1) )
 			add_atomic_vertex!(G, tolabel(1,0,0,0, 2) )
@@ -64,6 +72,8 @@ function test_cases()
 		end
 
 		@testset "delete_edge_different_chunk" begin
+			run(`rm -rf /tmp/graph`)
+			mkdir("/tmp/graph")
 			G = ChunkedGraph("/tmp/graph", "gs://neuroglancer/removeme/wow")
 			u = tolabel(1,0,0,0,1)
 			v = tolabel(1,0,0,1,2)
@@ -81,6 +91,8 @@ function test_cases()
 		end
 
 		@testset "test_3_node_delete" begin
+			run(`rm -rf /tmp/graph`)
+			mkdir("/tmp/graph")
 			G = ChunkedGraph("/tmp/graph", "gs://neuroglancer/removeme/wow")
 			add_atomic_vertex!(G, tolabel(1,0,0,0,1) )
 			add_atomic_vertex!(G, tolabel(1,0,0,1,2) )
@@ -100,6 +112,8 @@ function test_cases()
 
 
 		@testset "two_node_mincut!" begin
+			run(`rm -rf /tmp/graph`)
+			mkdir("/tmp/graph")
 			G = ChunkedGraph("/tmp/graph", "gs://neuroglancer/removeme/wow")
 			u = tolabel(1,0,0,0,1)
 			v = tolabel(1,0,0,0,2)
@@ -120,6 +134,8 @@ function test_cases()
 
 
 		@testset "triangle_mincut!" begin
+			run(`rm -rf /tmp/graph`)
+			mkdir("/tmp/graph")
 			G = ChunkedGraph("/tmp/graph", "gs://neuroglancer/removeme/wow")
 			u = tolabel(1,0,0,0,1)
 			v = tolabel(1,0,0,0,2)
@@ -141,6 +157,8 @@ function test_cases()
 		end
 
 		@testset "chunk_mincut!" begin
+			run(`rm -rf /tmp/graph`)
+			mkdir("/tmp/graph")
 			G = ChunkedGraph("/tmp/graph", "gs://neuroglancer/removeme/wow")
 			u = tolabel(1,0,0,0,1)
 			v = tolabel(1,0,0,0,2)
@@ -162,6 +180,8 @@ function test_cases()
 		end
 
 		@testset "affinity_mincut!" begin
+			run(`rm -rf /tmp/graph`)
+			mkdir("/tmp/graph")
 			G = ChunkedGraph("/tmp/graph", "gs://neuroglancer/removeme/wow")
 			source = tolabel(1,0,0,0,1)
 			a1 = tolabel(1,0,0,0,2)
@@ -196,6 +216,8 @@ function test_cases()
 		end
 
 		@testset "multi_split" begin
+			run(`rm -rf /tmp/graph`)
+			mkdir("/tmp/graph")
 			# Two triangles connected over a small bridge (x1-x2)
 			G = ChunkedGraph("/tmp/graph", "gs://neuroglancer/removeme/wow")
 			a1 = tolabel(1,0,0,0,1)
@@ -228,6 +250,8 @@ function test_cases()
 		end
 
 		@testset "multi_split_omni" begin
+			run(`rm -rf /tmp/graph`)
+			mkdir("/tmp/graph")
 			#= Copied from Omni
 			* Reference trinary tree diagram for the following tests
 			* Labelled Using vertex INDEX NOT segID
@@ -260,6 +284,8 @@ function test_cases()
 		end
 
 		@testset "supervoxels_not_splitted" begin
+			run(`rm -rf /tmp/graph`)
+			mkdir("/tmp/graph")
 			#=
 			Currently are datasets have unique
 			supervoxels
