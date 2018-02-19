@@ -1,12 +1,5 @@
 import Base: isless, isequal, ==, <, hash, collect, union!, setdiff!, isempty, convert
 
-struct AtomicEdge
-	u::Label
-	v::Label
-	affinity::Affinity
-	AtomicEdge(u::Label, v::Label, affinity::Affinity) = u < v ? new(u, v, affinity) : new(v, u, affinity)
-end
-
 #An EdgeSet represents a set of AtomicEdges between leaves of u and v
 struct CompositeEdgeSet
 	u::Label
@@ -156,18 +149,3 @@ function isvalid(cgraph, e)
 			(tochunkid(head(e)) != tochunkid(tail(e)) || tolevel(head(e)) == 1) &&
 			parent(tochunkid(head(e))) == parent(tochunkid(tail(e)))
 end
-
-AtomicEdge(u, v) = AtomicEdge(Label(u), Label(v), Affinity(1))
-AtomicEdge(u, v, affinity) = AtomicEdge(Label(u), Label(v), Affinity(affinity))
-
-# Comparison
-(==)(lhs::AtomicEdge, rhs::AtomicEdge) = isequal(head(lhs), head(rhs)) && isequal(tail(lhs), tail(rhs))
-isequal(lhs::AtomicEdge, rhs::AtomicEdge) = lhs == rhs
-
-#TODO: Make this definition independent of bit layout!
-#We mainly want to compare on chunkid first
-(<)(lhs::AtomicEdge, rhs::AtomicEdge) = isequal(head(lhs), head(rhs)) ? tail(lhs) < tail(rhs) : head(lhs) < head(rhs)
-isless(lhs::AtomicEdge, rhs::AtomicEdge) = lhs < rhs
-
-#hash(e::AtomicEdge, seed::UInt) = hash(e.u, hash(e.v, hash(:AtomicEdge, seed)))
-hash(e::AtomicEdge, seed::UInt) = hash(e.u, hash(e.v, seed))

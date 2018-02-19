@@ -20,7 +20,6 @@ mutable struct Chunk
 	#todo: lazy loading for vertices
 
 	function Chunk(cgraph::ChunkedGraph, chunkid::ChunkID, vertices::Dict{Label,Vertex}, graph::MultiGraph, max_label::Label)
-
 		prefix = stringify(chunkid)
 		fl = FileLock(expanduser(joinpath(cgraph.path, String("$(prefix).lock"))))
 		lock(fl)
@@ -158,7 +157,7 @@ function update!(c::Chunk)
 	# the one we are deleting as dirty
 	for v in c.deleted_vertices
 		# for child in v.children
-		#	@assert get_vertex(c.cgraph,child).parent==NULL_LABEL
+		# 	@assert get_vertex(c.cgraph, child).parent === NULL_LABEL
 		# end
 
 		for edge_set in incident_edges(c.graph, v.label)
@@ -232,7 +231,6 @@ function update!(c::Chunk)
 				v.parent = NULL_LABEL
 			end
 		end
-		
 		c.parent.clean = false
 	end
 

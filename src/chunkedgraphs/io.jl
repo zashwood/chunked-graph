@@ -1,7 +1,7 @@
 import Base: show, write, read
 
 using Logging
-const iologger = Logger("iologger");
+const iologger = Logger("iologger", level = OFF)
 
 show(io::IO, cgraph::ChunkedGraph) = print("ChunkedGraph with $(length(cgraph.chunks)) in memory")
 
@@ -46,17 +46,16 @@ function loadchunk(cgraph::ChunkedGraph, chunkid::ChunkID)
 	if !isfile(path)
 		return Chunk(cgraph, chunkid, vertex_map, mgraph, max_label)
 	end
-
 	
 	f = open(path, "r")
-	
+
 	# Check File Version
 	version = read(f, UInt64)
 	@assert version === UInt64(2)
 	
 	# Read Chunk Info
 	(max_label, v_cnt, e_cnt) = read(f, UInt64, 3)
-	
+
 	# Allocate Graph
 	sizehint!(mgraph, floor(UInt32, 1.5 * v_cnt), floor(UInt32, 1.5 * e_cnt))
 	sizehint!(vertex_map, floor(UInt32, 1.5 * v_cnt))
@@ -73,7 +72,7 @@ function loadchunk(cgraph::ChunkedGraph, chunkid::ChunkID)
 		edge_set = read(f, CompositeEdgeSet)
 		add_edges!(mgraph, head(edge_set), tail(edge_set), edge_set)
 	end
-	
+
 	close(f)
 	return Chunk(cgraph, chunkid, vertex_map, mgraph, max_label)
 end
@@ -138,7 +137,7 @@ end
 
 function save!(c::Chunk)
 	@assert c.clean
-	
+
 	prefix = stringify(c.id)
 	path = expanduser(joinpath(c.cgraph.path, "$(prefix).chunk"))
 	info(iologger, "Saving to $(path)...")
@@ -148,7 +147,6 @@ function save!(c::Chunk)
 	write(buf, UInt64(c.max_label)) # Max SegID
 	write(buf, UInt64(length(c.vertices))) # Vertex Count
 	write(buf, UInt64(length(LightGraphs.edges(c.graph.graph)))) # Edge Count
-		
 	for vertex in values(c.vertices)
 		write(buf, UInt64(vertex.label)) # Vertex Label
 		write(buf, UInt64(vertex.parent)) # Vertex Parent
@@ -159,7 +157,7 @@ function save!(c::Chunk)
 	for edgeset in values(c.graph.edge_map)
 		write(buf, edgeset)
 	end
-	
+
 	f = open(path, "w")
 	write(f, buf.data)
 	close(f)
@@ -195,6 +193,6 @@ function evict!(c::Chunk)
 	if length(c.parent.children) == 0 && !haskey(c.cgraph.lastused, c.parent.id)
 		c.cgraph.lastused[c.parent.id] = priority+1
 	end
-	unlock(c.fl)
-	close(c.fl)
+	unlock(c.flock)
+	close(c.flock)
 end

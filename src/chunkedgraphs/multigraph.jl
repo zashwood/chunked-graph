@@ -1,5 +1,4 @@
 using LightGraphs
-#using SmallSets
 
 import Base: sizehint!, show
 
@@ -38,7 +37,7 @@ function add_vertex!(mgraph::MultiGraph{L,E}, lbl::L) where {L,E}
 	if length(mgraph.inverse_vertex_map) < vcnt
 		resize!(mgraph.inverse_vertex_map,vcnt)
 	end
-	mgraph.inverse_vertex_map[UInt64(vcnt)] = lbl
+	mgraph.inverse_vertex_map[vcnt] = lbl
 end
 
 function rem_vertex!(mgraph::MultiGraph{L,E}, lbl::L) where {L,E}

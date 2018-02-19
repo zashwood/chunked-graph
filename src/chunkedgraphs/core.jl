@@ -13,7 +13,7 @@ const INF_CAPACITY     = typemax(Affinity)
 const MIN_AFFINITY     = typemin(Affinity)
 const NULL_LABEL       = typemax(Label)
 const EMPTY_LABEL_LIST = Vector{Label}()
-const DISABLE_ASSERTS  = true
+const DISABLE_ASSERTS  = false
 
 if DISABLE_ASSERTS
 	macro assert(x...)
@@ -185,4 +185,3 @@ function ChunkedGraph(graphpath::AbstractString, cloudpath::AbstractString)
 		false
 	)
 end
-

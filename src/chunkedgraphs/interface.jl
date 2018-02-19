@@ -88,7 +88,7 @@ function update!(cgraph::ChunkedGraph)
 end
 
 function add_atomic_vertex!(cgraph::ChunkedGraph, lbl::Label)
-	@assert tolevel(tochunkid(lbl)) == 1 "Vertex label at level $(tolevel(tochunkid(label))), expected 1."
+	@assert tolevel(tochunkid(lbl)) == 1 "Vertex label at level $(tolevel(tochunkid(lbl))), expected 1."
 
 	c = getchunk!(cgraph, parent(tochunkid(lbl)))
 	if haskey(c.vertices, lbl)

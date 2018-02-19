@@ -1,7 +1,6 @@
 __precompile__(true)
 push!(LOAD_PATH, dirname(@__FILE__))
 module ChunkedGraphs
-
 export ChunkedGraph, Chunk
 export AtomicEdge, Vertex
 export Label, Affinity
@@ -16,6 +15,7 @@ export getsupervoxelat
 include("core.jl")
 include("utils.jl")
 include("vertex.jl")
+include("atomicedge.jl")
 include("edge.jl")
 include("multigraph.jl")
 include("chunk.jl")
