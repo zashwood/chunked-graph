@@ -1,3 +1,5 @@
+__precompile__(true)
+push!(LOAD_PATH, dirname(@__FILE__))
 module ChunkedGraphs
 
 export ChunkedGraph, Chunk

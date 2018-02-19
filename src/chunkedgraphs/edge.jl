@@ -169,4 +169,5 @@ isequal(lhs::AtomicEdge, rhs::AtomicEdge) = lhs == rhs
 (<)(lhs::AtomicEdge, rhs::AtomicEdge) = isequal(head(lhs), head(rhs)) ? tail(lhs) < tail(rhs) : head(lhs) < head(rhs)
 isless(lhs::AtomicEdge, rhs::AtomicEdge) = lhs < rhs
 
-hash(e::AtomicEdge, seed::UInt) = hash(e.u, hash(e.v, hash(:AtomicEdge, seed)))
+#hash(e::AtomicEdge, seed::UInt) = hash(e.u, hash(e.v, hash(:AtomicEdge, seed)))
+hash(e::AtomicEdge, seed::UInt) = hash(e.u, hash(e.v, seed))

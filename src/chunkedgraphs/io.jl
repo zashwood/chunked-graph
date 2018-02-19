@@ -82,6 +82,10 @@ function getindex!(cgraph::ChunkedGraph, chunkid::ChunkID)
 	return getchunk!(cgraph, chunkid)
 end
 
+@inline function gentle_touch!(c::Chunk)
+	c.cgraph.lastused[c.id] = time_ns()
+end
+
 function getchunk!(cgraph::ChunkedGraph, chunkid::ChunkID)
 	if !haskey(cgraph.chunks, chunkid)
 		tmp = loadchunk(cgraph, chunkid)
@@ -94,23 +98,26 @@ function getchunk!(cgraph::ChunkedGraph, chunkid::ChunkID)
 
 	c = cgraph.chunks[chunkid]::Chunk
 	if !cgraph.eviction_mode
-		#gentle_touch!(c::Chunk)
-		cgraph.eviction_mode = true
-		while length(cgraph.chunks) > CACHESIZE
-			convict, priority = DataStructures.peek(cgraph.lastused)
-			children = cgraph.chunks[convict].children
-			if length(children) > 0
-				#spare him, kill the children first
-				#he'll be put back on death row when his children die
-				dequeue!(cgraph.lastused, convict)
-				continue
-			else
-				evict!(cgraph.chunks[convict])
-			end
-		end
-		cgraph.eviction_mode = false
+		gentle_touch!(c::Chunk)
 	end
 	return c
+end
+
+function run_eviction!(cgraph::ChunkedGraph)
+	cgraph.eviction_mode = true
+	while length(cgraph.chunks) > CACHESIZE
+		convict, priority = DataStructures.peek(cgraph.lastused)
+		children = cgraph.chunks[convict].children
+		if length(children) > 0
+			#spare him, kill the children first
+			#he'll be put back on death row when his children die
+			dequeue!(cgraph.lastused, convict)
+			continue
+		else
+			evict!(cgraph.chunks[convict])
+		end
+	end
+	cgraph.eviction_mode = false
 end
 
 function getvertex!(cgraph::ChunkedGraph, l::Label)
@@ -162,14 +169,13 @@ function save!(c::Chunk)
 	c.modified = false
 end
 
-eviction_count = DataStructures.DefaultDict{ChunkID,Int}(0)
+const eviction_count = DataStructures.DefaultDict{ChunkID,Int}(0)
 function evict!(c::Chunk)
 	global eviction_count
 	t = (eviction_count[c.id] += 1)
 	if t > 1
-		println("warning: evicted $(stringify(c.id)) $(t) times")
+		warn(iologger, "evicted $(stringify(c.id)) $(t) times")
 	end
-	push!(evicted, c.id)
 
 	@assert !isroot(c)
 	@assert c.id != SECOND_ID
@@ -189,4 +195,6 @@ function evict!(c::Chunk)
 	if length(c.parent.children) == 0 && !haskey(c.cgraph.lastused, c.parent.id)
 		c.cgraph.lastused[c.parent.id] = priority+1
 	end
+	unlock(c.fl)
+	close(c.fl)
 end

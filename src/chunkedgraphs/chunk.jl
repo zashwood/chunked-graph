@@ -1,4 +1,5 @@
 using IterTools
+using FileLocks
 
 mutable struct Chunk
 	cgraph::ChunkedGraph{Chunk}
@@ -14,11 +15,17 @@ mutable struct Chunk
 	clean::Bool
 	modified::Bool
 	max_label::SegmentID
+	flock::FileLock
 
 	#todo: lazy loading for vertices
 
 	function Chunk(cgraph::ChunkedGraph, chunkid::ChunkID, vertices::Dict{Label,Vertex}, graph::MultiGraph, max_label::Label)
-		c = new(cgraph, chunkid, graph, vertices, nothing, Chunk[], Set{Vertex}(), Set{Vertex}(), Set{AtomicEdge}(), Set{AtomicEdge}(), true, false, max_label)
+
+		prefix = stringify(chunkid)
+		fl = FileLock(expanduser(joinpath(cgraph.path, String("$(prefix).lock"))))
+		lock(fl)
+
+		c = new(cgraph, chunkid, graph, vertices, nothing, Chunk[], Set{Vertex}(), Set{Vertex}(), Set{AtomicEdge}(), Set{AtomicEdge}(), true, false, max_label, fl)
 
 		if !isroot(chunkid)
 			par = parent!(c)
@@ -33,11 +40,13 @@ end
 	@assert !(v in c.deleted_vertices)
 	@assert parent(tochunkid(v.label)) == c.id
 	push!(c.added_vertices, v)
+	touch!(c)
 end
 @inline function delete_vertex!(c::Chunk, v::Vertex)
 	@assert !(v in c.added_vertices)
 	@assert parent(tochunkid(v.label)) == c.id
 	push!(c.deleted_vertices, v)
+	touch!(c)
 end
 @inline function add_edge!(c::Chunk, e::AtomicEdge)
 	@assert !(e in c.deleted_edges)
@@ -49,6 +58,7 @@ end
 		tmp == c.id
 	end
 	push!(c.added_edges, e)
+	touch!(c)
 end
 @inline function delete_edge!(c::Chunk, e::AtomicEdge)
 	@assert !(e in c.added_edges)
@@ -60,6 +70,7 @@ end
 		tmp == c.id
 	end
 	push!(c.deleted_edges, e)
+	touch!(c)
 end
 
 function Chunk(cgraph::ChunkedGraph, chunkid::ChunkID)
@@ -95,10 +106,6 @@ function touch!(c::Chunk)
 		c.modified = true
 		touch!(c.parent)
 	end
-end
-
-function gentle_touch!(c::Chunk)
-	c.cgraph.lastused[c.id] = time_ns()
 end
 
 function uniquelabel!(c::Chunk)

@@ -98,12 +98,20 @@ function add_atomic_vertex!(cgraph::ChunkedGraph, lbl::Label)
 
 	v = Vertex(lbl, NULL_LABEL, EMPTY_LABEL_LIST)
 	add_vertex!(c, v)
-	touch!(c)
 end
 
 function add_atomic_vertices!(cgraph::ChunkedGraph, lbls::Vector{Label})
 	gc_enable(false)
-	for lbl in lbls
+	for (i,lbl) in enumerate(lbls)
+		if i%100000==0
+			println(i)
+		end
+		if length(cgraph.chunks) > 2*CACHESIZE
+			run_eviction!(cgraph)
+			gc_enable(true)
+			gc()
+			gc_enable(false)
+		end
 		add_atomic_vertex!(cgraph, lbl)
 	end
 	gc_enable(true)
@@ -116,12 +124,20 @@ function add_atomic_edge!(cgraph::ChunkedGraph, edge::AtomicEdge)
 	end
 	c = getchunk!(cgraph, cid)
 	add_edge!(c, edge)
-	touch!(c)
 end
 
 function add_atomic_edges!(cgraph::ChunkedGraph, edges::Vector{AtomicEdge})
 	gc_enable(false)
-	for edge in edges
+	for (i,edge) in enumerate(edges)
+		if i%100000==0
+			println(i)
+		end
+		if length(cgraph.chunks) > 2*CACHESIZE
+			run_eviction!(cgraph)
+			gc_enable(true)
+			gc()
+			gc_enable(false)
+		end
 		add_atomic_edge!(cgraph, edge)
 	end
 	gc_enable(true)
@@ -129,7 +145,16 @@ end
 
 function add_atomic_edges!(cgraph::ChunkedGraph, edges::Vector{Tuple{Label,Label}})
 	gc_enable(false)
-	for edge in edges
+	for (i,edge) in enumerate(edges)
+		if i%100000==0
+			println(i)
+		end
+		if length(cgraph.chunks) > 2*CACHESIZE
+			run_eviction!(cgraph)
+			gc_enable(true)
+			gc()
+			gc_enable(false)
+		end
 		add_atomic_edge!(cgraph, AtomicEdge(edge[1],edge[2]))
 	end
 	gc_enable(true)
@@ -142,5 +167,4 @@ function delete_atomic_edge!(cgraph::ChunkedGraph, edge::AtomicEdge)
 	end
 	c = getchunk!(cgraph, cid)
 	delete_edge!(c, edge)
-	touch!(c)
 end

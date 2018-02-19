@@ -165,11 +165,11 @@ const SECOND_ID        = tochunkid(MAX_DEPTH, 0, 0, 0)
 
 const CHUNK_SIZE       = (512, 512, 64)
 
-const CACHESIZE = 100000
+const CACHESIZE = 10000
 
 mutable struct ChunkedGraph{C} # {C} is necessary until Julia supports forward declaration of Chunk
 	chunks::Dict{ChunkID, C}
-	lastused::PriorityQueue{ChunkID, UInt64}
+	lastused::PriorityQueue{ChunkID, UInt64, Base.Order.ForwardOrdering}
 	path::AbstractString
 #	cloudvolume::CloudVolumeWrapper
 	eviction_mode::Bool
