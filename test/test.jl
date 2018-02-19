@@ -56,6 +56,38 @@ function test_cases()
 			@test root!(G, getvertex!(G, tolabel(1,0,0,1,3))) == root!(G, getvertex!(G, tolabel(1,0,0,0,1)))
 		end
 
+		@testset "test_circle_external_edge" begin
+			run(`rm -rf /tmp/graph`)
+			mkdir("/tmp/graph")
+			G = ChunkedGraph("/tmp/graph", "gs://neuroglancer/removeme/wow")
+			add_atomic_vertex!(G, tolabel(1,0,0,0,1))
+			add_atomic_vertex!(G, tolabel(1,0,0,1,1))
+			add_atomic_vertex!(G, tolabel(1,0,0,2,1))
+			add_atomic_vertex!(G, tolabel(1,0,0,3,1))
+			add_atomic_vertex!(G, tolabel(1,0,0,4,1))
+			add_atomic_vertex!(G, tolabel(1,0,0,0,2))
+			add_atomic_vertex!(G, tolabel(1,0,0,1,2))
+			add_atomic_vertex!(G, tolabel(1,0,0,1,3))
+			add_atomic_vertex!(G, tolabel(1,0,0,3,2))
+			add_atomic_vertex!(G, tolabel(1,0,0,4,2))
+
+			add_atomic_edge!(G, AtomicEdge(tolabel(1,0,0,0,1), tolabel(1,0,0,1,1), 1.f0))
+			add_atomic_edge!(G, AtomicEdge(tolabel(1,0,0,1,1), tolabel(1,0,0,2,1), 1.f0))
+			add_atomic_edge!(G, AtomicEdge(tolabel(1,0,0,2,1), tolabel(1,0,0,3,1), 1.f0))
+			add_atomic_edge!(G, AtomicEdge(tolabel(1,0,0,3,1), tolabel(1,0,0,4,1), 1.f0))
+			add_atomic_edge!(G, AtomicEdge(tolabel(1,0,0,0,1), tolabel(1,0,0,1,2), 1.f0))
+			add_atomic_edge!(G, AtomicEdge(tolabel(1,0,0,0,1), tolabel(1,0,0,1,3), 1.f0))
+			add_atomic_edge!(G, AtomicEdge(tolabel(1,0,0,1,2), tolabel(1,0,0,2,1), 1.f0))
+			add_atomic_edge!(G, AtomicEdge(tolabel(1,0,0,1,3), tolabel(1,0,0,2,1), 1.f0))
+			add_atomic_edge!(G, AtomicEdge(tolabel(1,0,0,2,1), tolabel(1,0,0,3,2), 1.f0))
+			add_atomic_edge!(G, AtomicEdge(tolabel(1,0,0,3,1), tolabel(1,0,0,4,2), 1.f0))
+			add_atomic_edge!(G, AtomicEdge(tolabel(1,0,0,3,2), tolabel(1,0,0,4,1), 1.f0))
+			add_atomic_edge!(G, AtomicEdge(tolabel(1,0,0,3,2), tolabel(1,0,0,4,2), 1.f0))
+			
+			update!(G)
+			@test root!(G, getvertex!(G, tolabel(1,0,0,1,1))) === root!(G, getvertex!(G, tolabel(1,0,0,2,1))) === root!(G, getvertex!(G, tolabel(1,0,0,4,1)))
+		end
+
 		@testset "delete_edge_same_chunk" begin
 			run(`rm -rf /tmp/graph`)
 			mkdir("/tmp/graph")

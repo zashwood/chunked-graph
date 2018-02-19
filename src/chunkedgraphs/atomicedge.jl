@@ -1,8 +1,8 @@
-using NamedTuples
+import Base: isless, isequal, ==, <, hash
 
-import Base: isless, isequal, ==, <, hash, convert
+abstract type AbstractEdge end
 
-struct AtomicEdge <: NamedTuples.NamedTuple
+struct AtomicEdge <: AbstractEdge
 	u::Label
 	v::Label
 	affinity::Affinity
@@ -13,14 +13,17 @@ AtomicEdge(u, v) = AtomicEdge(Label(u), Label(v), Affinity(1))
 AtomicEdge(u, v, affinity) = AtomicEdge(Label(u), Label(v), Affinity(affinity))
 
 # Comparison
-(==)(lhs::AtomicEdge, rhs::AtomicEdge) = isequal(head(lhs), head(rhs)) && isequal(tail(lhs), tail(rhs))
+(==)(lhs::AtomicEdge, rhs::AtomicEdge) = isequal(lhs.u, rhs.u) && isequal(lhs.v, rhs.v)
 isequal(lhs::AtomicEdge, rhs::AtomicEdge) = lhs == rhs
 
-#TODO: Make this definition independent of bit layout!
-#We mainly want to compare on chunkid first
-(<)(lhs::AtomicEdge, rhs::AtomicEdge) = isequal(head(lhs), head(rhs)) ? tail(lhs) < tail(rhs) : head(lhs) < head(rhs)
+# TODO: Make this definition independent of bit layout!
+# We mainly want to compare on chunkid first
+(<)(lhs::AtomicEdge, rhs::AtomicEdge) = isequal(lhs.u, rhs.u) ? lhs.v < rhs.v : lhs.u < rhs.u
 isless(lhs::AtomicEdge, rhs::AtomicEdge) = lhs < rhs
 
-#we don't have heterogeneous sets, so we don't need to hash in the type name
-#hash(e::AtomicEdge, seed::UInt) = hash(e.u, hash(e.v, hash(:AtomicEdge, seed)))
+# We don't have heterogeneous sets, so we don't need to hash in the type name
+# hash(e::AtomicEdge, seed::UInt) = hash(e.u, hash(e.v, hash(:AtomicEdge, seed)))
 hash(e::AtomicEdge, seed::UInt) = hash(e.u, hash(e.v, seed))
+
+head(e::AbstractEdge) = e.u
+tail(e::AbstractEdge) = e.v

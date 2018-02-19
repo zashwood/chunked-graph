@@ -1,7 +1,7 @@
 using DataStructures
 #using CloudVolume
 
-const Label           = UInt64
+const Label            = UInt64
 const Affinity         = Float32
 
 const ChunkID          = UInt32

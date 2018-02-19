@@ -9,8 +9,8 @@ mutable struct FileLock
 	s::String
 	locked::Bool
 	function FileLock(s)
-		f=open(s,"w")
-		return new(f,s,false)
+		f = open(s, "w")
+		return new(f, s, false)
 	end
 end
 
@@ -21,18 +21,18 @@ const LOCK_UN = 0x08		# unlock file
 
 function lock(fl::FileLock)
 	if !fl.locked
-		x=ccall(:flock, Int32, (Int32, Int32), fd(fl.f), LOCK_EX)
-		@assert x==0
+		x = ccall(:flock, Int32, (Int32, Int32), fd(fl.f), LOCK_EX)
+		@assert x == 0
 		info("acquired lock $(fl.s)")
-		fl.locked=true
+		fl.locked = true
 	end
 end
 
 function unlock(fl::FileLock)
-	x=ccall(:flock, Int32, (Int32, Int32), fd(fl.f), LOCK_UN)
-	@assert x==0
+	x = ccall(:flock, Int32, (Int32, Int32), fd(fl.f), LOCK_UN)
+	@assert x == 0
 	info("released lock $(fl.s)")
-	fl.locked=false
+	fl.locked = false
 end
 
 function close(fl::FileLock)
