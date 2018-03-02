@@ -4,3 +4,4 @@ CodecZstd
 DataFrames
 Memoize
 MySQL
+OffsetArrays
