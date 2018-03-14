@@ -56,39 +56,32 @@ end
 
 function load_labels(watershed::OffsetArray{T, 3}) where T <: Integer
 	voxel_range = indices(watershed)[1:3]
-	chunk_range = map(x -> div.(x, CG_CHUNKSIZE), (minimum.(voxel_range), maximum.(voxel_range)))
-	res = MySQL.query(mysql_conn, """
-		SELECT c.x, c.y, c.z, m.regiongraph_sv, m.chunkedgraph_sv
-		FROM chunks c JOIN mappings m ON c.id = m.chunk_id
-		WHERE c.x BETWEEN $(chunk_range[1][1]) AND $(chunk_range[2][1] + 1) AND
-		      c.y BETWEEN $(chunk_range[1][2]) AND $(chunk_range[2][2] + 1) AND
-		      c.z BETWEEN $(chunk_range[1][3]) AND $(chunk_range[2][3] + 1);
-	""", DataFrame)
-
+	# Collect all Chunk IDs intersecting with voxel_range.
+	chunks_to_fetch = reshape([ChunkedGraphs.world_to_chunk(x, y, z) for
+						x in (first(voxel_range[1]):CG_CHUNKSIZE[1]:last(voxel_range[1])),
+						y in (first(voxel_range[2]):CG_CHUNKSIZE[2]:last(voxel_range[2])),
+						z in (first(voxel_range[3]):CG_CHUNKSIZE[3]:last(voxel_range[3]))], :)
+	
 	chunk_labels = Dict{ChunkID, Dict{T, Label}}()
+	for chunkid in chunks_to_fetch
+		chunk_labels[chunkid] = Dict{T, Label}()
+	end
+
+	res = MySQL.query(mysql_conn, "SELECT id, edges FROM chunkedges WHERE id IN ($(join(chunks_to_fetch, ',')));", DataFrame)
+	
 	for row in eachrow(res)
-		chunkid = tochunkid(1, row[:x], row[:y], row[:z])
-		if !haskey(chunk_labels, chunkid)
-			chunk_labels[chunkid] = Dict{T, Label}(row[:regiongraph_sv] => row[:chunkedgraph_sv])
-		else
-			push!(chunk_labels[chunkid], row[:regiongraph_sv] => row[:chunkedgraph_sv])
-		end
+		chunkid = ChunkID(row[:id])
+		chunk_labels[chunkid] = Dict{T, Label}(reinterpret(Pair{T, Label}, Vector{UInt8}(row[:edges])))
 	end
 	return chunk_labels::Dict{ChunkID, Dict{T, Label}}
 end
 
 function save_labels(chunk_labels::Dict{ChunkID, Dict{T, Label}}) where T <: Integer
-	if length(chunk_labels) > 0
-		MySQL.execute!(mysql_conn,
-			"INSERT IGNORE INTO chunks (x,y,z) VALUES ($(join(map(x->join(topos(x),","), keys(chunk_labels)), "),(")));")
-	end
-	
 	MySQL.execute!(mysql_conn, "START TRANSACTION;")
 	for (cid, mappings) in chunk_labels
 		if length(mappings) > 0
-			x, y, z = topos(cid)
-			res = MySQL.query(mysql_conn, "SELECT id FROM chunks WHERE x = $x AND y = $y AND z = $z;")
-			MySQL.execute!(mysql_conn, "INSERT IGNORE INTO mappings (chunk_id, regiongraph_sv, chunkedgraph_sv) VALUES ($(res[:id][1]),$(join([join(pair, ',') for pair in mappings], "),($(res[:id][1]),")))")
+			escaped = MySQL.escape(mysql_conn, String(reinterpret(UInt8, collect(mappings))))
+			MySQL.execute!(mysql_conn, "INSERT INTO chunkedges (id, edges) VALUES ($cid, \"$escaped\") ON DUPLICATE KEY UPDATE edges = VALUES(edges);")
 		end
 	end
 	MySQL.execute!(mysql_conn, "COMMIT;")
@@ -100,23 +93,18 @@ function chunked_labelling(chunk::RelabeledChunk{T}) where T <: Integer
 	chunk.rg_to_cg_boundary = load_labels(chunk.watershed_original)
 	chunk.rg_to_cg_complete = copy(chunk.rg_to_cg_boundary)
 	cg_to_rg = Set{Label}()
-	for c in values(chunk.rg_to_cg_complete)
+	nextsegid = Dict{ChunkID, UInt32}()
+	for (k, c) in chunk.rg_to_cg_complete
 		union!(cg_to_rg, values(c))
+		nextsegid[k] = 1
 	end
 	println(toq())
 
 	print("Relabeling chunk: "); tic();
 	chunk.watershed_relabeled = OffsetArray(Label, indices(chunk.watershed_original)...)
-	nextsegid = Dict{ChunkID, UInt32}();
+
 	for k in indices(chunk.watershed_original, 3), j in indices(chunk.watershed_original, 2), i in indices(chunk.watershed_original, 1)
 		chunkid = ChunkedGraphs.world_to_chunk(i, j, k)
-		if !haskey(chunk.rg_to_cg_complete, chunkid) # TODO: Create this outside
-			chunk.rg_to_cg_complete[chunkid] = Dict{T, Label}()
-			chunk.rg_to_cg_boundary[chunkid] = Dict{T, Label}()
-		end
-		if !haskey(nextsegid, chunkid)
-			nextsegid[chunkid] = 1
-		end
 
 		# Don't relabel cell boundary
 		if chunk.watershed_original[i, j, k] == 0
