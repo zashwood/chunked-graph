@@ -129,7 +129,7 @@ function buildup!(c::ChunkedGraph, e::CompositeEdgeSet)
 end
 function breakdown!(c::ChunkedGraph, e::CompositeEdgeSet)
 	if !hasvertex!(c, head(e)) || !hasvertex!(c, tail(e))
-		return chain(map(x -> breakdown!(c, x), e.children)...)
+		return mapreduce(x -> breakdown!(c, x), vcat, e.children)
 	else
 		return [e]
 	end

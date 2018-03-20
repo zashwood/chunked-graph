@@ -3,42 +3,42 @@ import Base: show, write, read
 using Logging
 const iologger = Logger("iologger", level = OFF)
 
-show(io::IO, cgraph::ChunkedGraph) = print("ChunkedGraph with $(length(cgraph.chunks)) in memory")
+show(io::IO, cgraph::ChunkedGraph) = print("ChunkedGraph with $(length(cgraph.chunks)) chunks in memory")
 
 function write(io::IO, e::CompositeEdgeSet)
 	write(io, e.u)
-	write(io,e.v)
-	write(io,e.max_affinity)
-	write(io,e.nonempty)
-	write(io,UInt64(length(e.children)))
+	write(io, e.v)
+	write(io, e.max_affinity)
+	write(io, e.nonempty)
+	write(io, UInt64(length(e.children)))
 	for c in e.children
-		write(io,c)
+		write(io, c)
 	end
 end
 
 function read(io::IO, ::Type{CompositeEdgeSet})
-	u=read(io,Label)
-	v=read(io,Label)
-	aff=read(io,Affinity)
-	nonempty=read(io,Bool)
-	n=read(io,UInt64)
+	u = read(io, Label)
+	v = read(io, Label)
+	aff = read(io, Affinity)
+	nonempty = read(io, Bool)
+	n = read(io, UInt64)
 	children = CompositeEdgeSet[read(io, CompositeEdgeSet) for i in 1:n]
 	return CompositeEdgeSet(u, v, aff, children, nonempty)
 end
 
 function write(io::IO, e::AtomicEdge)
-	write(io,e.u)
-	write(io,e.v)
-	write(io,e.affinity)
+	write(io, e.u)
+	write(io, e.v)
+	write(io, e.affinity)
 end
 
 function read(io::IO, ::Type{AtomicEdge})
-	return AtomicEdge(read(io,Label), read(io,Label), read(io,Affinity))
+	return AtomicEdge(read(io, Label), read(io, Label), read(io, Affinity))
 end
 
 function loadchunk(cgraph::ChunkedGraph, chunkid::ChunkID)
 	vertex_map = Dict{Label, Vertex}()
-	mgraph=MultiGraph{Label,AtomicEdge,CompositeEdgeSet}()
+	mgraph = MultiGraph{Label, AtomicEdge, CompositeEdgeSet}()
 	max_label = Label(0)
 
 	prefix = stringify(chunkid)
@@ -191,7 +191,7 @@ function evict!(c::Chunk)
 	priority = c.cgraph.lastused[c.id]
 	dequeue!(c.cgraph.lastused, c.id)
 	if length(c.parent.children) == 0 && !haskey(c.cgraph.lastused, c.parent.id)
-		c.cgraph.lastused[c.parent.id] = priority+1
+		c.cgraph.lastused[c.parent.id] = priority + 1
 	end
 	unlock(c.flock)
 	close(c.flock)
